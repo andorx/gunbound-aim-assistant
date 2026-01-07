@@ -120,13 +120,14 @@ class GunboundAimAssistant:
     def __init__(self, root):
         self.root = root
         self.root.title("Gunbound Aim Assistant")
-        self.root.geometry("1000x700")
+        self.root.geometry("1300x850")
+        self.root.resizable(False, False)  # Disable window resizing
 
         # Canvas position tracking
         self.dragging_player = False
         self.dragging_enemy = False
-        self.player_pos = [200, 500]  # [x, y] for player gun barrel
-        self.enemy_pos = [600, 500]   # [x, y] for enemy tank
+        self.player_pos = [200, 600]  # [x, y] for player gun barrel
+        self.enemy_pos = [850, 600]   # [x, y] for enemy tank
 
         # Setup UI
         self.setup_control_panel()
@@ -147,8 +148,7 @@ class GunboundAimAssistant:
         ttk.Label(control_frame, text="Wind Force (1-12):").pack(anchor=tk.W)
         self.wind_force = tk.DoubleVar(value=5.0)
         self.wind_force_slider = tk.Scale(control_frame, from_=1, to=12, variable=self.wind_force,
-                                          orient=tk.HORIZONTAL, command=self.on_param_change,
-                                          resolution=1, showvalue=0, highlightthickness=0)
+                                          orient=tk.HORIZONTAL, command=self.on_param_change)
         self.wind_force_slider.pack(fill=tk.X, pady=5)
         self.wind_force_label = ttk.Label(control_frame, text="5")
         self.wind_force_label.pack(anchor=tk.E)
@@ -194,19 +194,13 @@ class GunboundAimAssistant:
 
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        # Results display
-        ttk.Label(control_frame, text="Calculated Results", font=("Arial", 12, "bold")).pack(pady=5)
-        self.results_label = ttk.Label(control_frame, text="Adjust parameters above",
-                                      wraplength=180)
-        self.results_label.pack(anchor=tk.W, pady=5)
-
     def setup_canvas(self):
         """Create the drawing canvas"""
         canvas_frame = ttk.Frame(self.root, padding="10")
-        canvas_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        canvas_frame.pack(side=tk.RIGHT)
 
-        self.canvas = tk.Canvas(canvas_frame, bg="#1a1a2e", width=700, height=650)
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas = tk.Canvas(canvas_frame, bg="#1a1a2e", width=1050, height=815)
+        self.canvas.pack()
 
         # Bind mouse events for dragging
         self.canvas.bind("<Button-1>", self.on_canvas_click)
@@ -214,7 +208,7 @@ class GunboundAimAssistant:
         self.canvas.bind("<ButtonRelease-1>", self.on_canvas_release)
 
         # Draw ground line reference
-        self.canvas.create_line(0, 550, 800, 550, fill="#4a5568", width=2, dash=(5, 5))
+        self.canvas.create_line(0, 550, 1050, 550, fill="#4a5568", width=2, dash=(5, 5))
 
     def on_wind_knob_change(self, angle):
         """Handle wind angle knob change"""
@@ -286,74 +280,56 @@ class GunboundAimAssistant:
         - Different wind angles affect trajectory differently
         - Gunbound wind 1-12 scale means higher values = stronger wind effect
         """
-        # TODO: Implement the trajectory calculation here
-        # For now, returning a placeholder straight line
         trajectory = []
         start_x, start_y = self.player_pos
 
-        # Placeholder: Simple parabolic without wind
-        # Replace this with your actual physics calculation!
+        # Get input parameters
         power = self.shot_power.get()
-        angle_rad = math.radians(self.shot_angle.get())
-
-        # Initial velocity components
-        vx = power * math.cos(angle_rad) * 0.1
-        vy = -power * math.sin(angle_rad) * 0.1  # Negative because canvas Y is inverted
-
-        # Simple physics loop
-        x, y = start_x, start_y
-        dt = 0.5  # Time step
-        gravity = 2.0  # Gravity constant
-
-        for t in range(100):
-            trajectory.append([x, y])
-
-            # Update position
-            x += vx * dt
-            y += vy * dt
-
-            # Apply gravity
-            vy += gravity * dt
-
-            # Stop if off screen
-            if x > 800 or y > 700:
-                break
-
-        return trajectory
-
-    def calculate_wind_correction(self):
-        """
-        Calculate suggested angle/power adjustments for wind.
-
-        This is where YOU can implement wind correction logic!
-        The function should return adjustment suggestions.
-
-        Returns:
-        - Dictionary with 'angle_adjustment' and 'power_adjustment' suggestions
-        """
-        # TODO: Implement wind correction calculation
-        # This should analyze how much to adjust your shot based on wind
-
+        shot_angle = self.shot_angle.get()
         wind_force = self.wind_force.get()
         wind_angle = self.wind_angle.get()
 
-        # Placeholder logic - replace with your calculation!
-        angle_adj = 0
-        power_adj = 0
+        # Physics Constants (from main.py)
+        GRAVITY = 9.8
+        WIND_FACTOR = 0.5
+        TIME_STEP = 0.1
+        MAX_TIME = 25.0
 
-        return {
-            'angle_adjustment': angle_adj,
-            'power_adjustment': power_adj,
-            'wind_effect': f"Wind {wind_force} at {wind_angle}°"
-        }
+        # Convert angles to radians
+        theta = math.radians(shot_angle)  # Shot angle
+        wind_a = math.radians(wind_angle)  # Wind angle
+
+        t = 0
+        while t < MAX_TIME:
+            # Wind Decomposition (main.py formula)
+            wx = wind_force * math.cos(wind_a) * WIND_FACTOR
+            wy = wind_force * math.sin(wind_a) * WIND_FACTOR
+
+            # Trajectory math (from main.py)
+            dx = (power * math.cos(theta) * t) + (wx * t)
+            dy = (power * math.sin(theta) * t) - (0.5 * GRAVITY * t**2) + (wy * t)
+
+            # Convert to canvas coordinates
+            screen_x = start_x + dx
+            screen_y = start_y - dy  # Invert Y for canvas
+
+            trajectory.append([screen_x, screen_y])
+
+            # Stop if off screen vertically
+            if screen_y > 815:
+                break
+
+            t += TIME_STEP
+
+        return trajectory
 
     def update_visualization(self):
         """Update the canvas with all visual elements"""
         self.canvas.delete("all")
 
         # Draw ground reference line
-        self.canvas.create_line(0, 550, 800, 550, fill="#4a5568", width=2, dash=(5, 5))
-        self.canvas.create_text(400, 565, text="Ground Reference", fill="#4a5568", font=("Arial", 8))
+        self.canvas.create_line(0, 550, 1050, 550, fill="#4a5568", width=2, dash=(5, 5))
+        self.canvas.create_text(525, 565, text="Ground Reference", fill="#4a5568", font=("Arial", 8))
 
         # Draw distance reference
         self.canvas.create_text(50, 20, text="Scale: 100px ≈ 1 screen distance",
@@ -395,18 +371,6 @@ class GunboundAimAssistant:
         # Draw wind indicator
         self.draw_wind_indicator()
 
-        # Update results label
-        correction = self.calculate_wind_correction()
-        results_text = f"""Distance: {distance:.1f} px
-
-{correction['wind_effect']}
-
-Angle Adjustment:
-{correction['angle_adjustment']:+.1f}°
-
-Power Adjustment:
-{correction['power_adjustment']:+.1f}"""
-        self.results_label.config(text=results_text)
 
     def draw_wind_indicator(self):
         """Draw a visual wind direction arrow"""
@@ -414,7 +378,7 @@ Power Adjustment:
         wind_angle = self.wind_angle.get()
 
         # Position in top-right corner
-        center_x, center_y = 650, 80
+        center_x, center_y = 975, 80
         arrow_length = 30
 
         # Calculate arrow end point
