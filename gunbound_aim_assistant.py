@@ -138,8 +138,8 @@ class GunboundAimAssistant:
 
     def setup_control_panel(self):
         """Create the control panel with input fields"""
-        control_frame = ttk.Frame(self.root, padding="10")
-        control_frame.pack(side=tk.LEFT, fill=tk.Y)
+        control_frame = ttk.Frame(self.root)
+        control_frame.pack(side=tk.LEFT, fill=tk.Y, expand=True)
 
         # Title
         ttk.Label(control_frame, text="Wind Settings", font=("Arial", 12, "bold")).pack(pady=5)
@@ -147,9 +147,8 @@ class GunboundAimAssistant:
         # Wind Force (1-12 scale, integer steps)
         ttk.Label(control_frame, text="Wind Force (1-12):").pack(anchor=tk.W)
         self.wind_force = tk.DoubleVar(value=5.0)
-        self.wind_force_slider = tk.Scale(control_frame, from_=1, to=12, variable=self.wind_force,
-                                          orient=tk.HORIZONTAL, command=self.on_param_change)
-        self.wind_force_slider.pack(fill=tk.X, pady=5)
+        ttk.Scale(control_frame, from_=1, to=12, variable=self.wind_force,
+                orient=tk.HORIZONTAL, command=self.on_wind_force_change).pack(fill=tk.X, pady=5)
         self.wind_force_label = ttk.Label(control_frame, text="5")
         self.wind_force_label.pack(anchor=tk.E)
 
@@ -180,16 +179,16 @@ class GunboundAimAssistant:
         ttk.Label(control_frame, text="Shot Angle (°):").pack(anchor=tk.W)
         self.shot_angle = tk.DoubleVar(value=45.0)
         ttk.Scale(control_frame, from_=0, to=90, variable=self.shot_angle,
-                 orient=tk.HORIZONTAL, command=self.on_param_change).pack(fill=tk.X, pady=5)
+                 orient=tk.HORIZONTAL, command=self.on_shot_angle_change).pack(fill=tk.X, pady=5)
         self.shot_angle_label = ttk.Label(control_frame, text="45.0°")
         self.shot_angle_label.pack(anchor=tk.E)
 
         # Shot Power
         ttk.Label(control_frame, text="Shot Power:").pack(anchor=tk.W, pady=(10, 0))
-        self.shot_power = tk.DoubleVar(value=200.0)
-        ttk.Scale(control_frame, from_=0, to=400, variable=self.shot_power,
-                 orient=tk.HORIZONTAL, command=self.on_param_change).pack(fill=tk.X, pady=5)
-        self.shot_power_label = ttk.Label(control_frame, text="200.0")
+        self.shot_power = tk.DoubleVar(value=60.0)
+        ttk.Scale(control_frame, from_=0, to=130, variable=self.shot_power,
+                 orient=tk.HORIZONTAL, command=self.on_shot_power_change).pack(fill=tk.X, pady=5)
+        self.shot_power_label = ttk.Label(control_frame, text="60.0")
         self.shot_power_label.pack(anchor=tk.E)
 
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
@@ -213,6 +212,27 @@ class GunboundAimAssistant:
     def on_wind_knob_change(self, angle):
         """Handle wind angle knob change"""
         self.wind_angle.set(angle)
+        self.on_param_change()
+
+    def on_wind_force_change(self, value):
+        """Handle wind force slider change and round to integer"""
+        # Round to nearest integer
+        rounded_value = round(float(value))
+        self.wind_force.set(rounded_value)
+        self.on_param_change()
+
+    def on_shot_angle_change(self, value):
+        """Handle shot angle slider change with fine step resolution"""
+        # Round to 0.1 degree for smooth updates
+        rounded_value = round(float(value) * 10) / 10
+        self.shot_angle.set(rounded_value)
+        self.on_param_change()
+
+    def on_shot_power_change(self, value):
+        """Handle shot power slider change with fine step resolution"""
+        # Round to 0.1 for smooth updates
+        rounded_value = round(float(value) * 10) / 10
+        self.shot_power.set(rounded_value)
         self.on_param_change()
 
     def set_wind_angle(self, angle):
@@ -258,10 +278,8 @@ class GunboundAimAssistant:
 
     def calculate_trajectory(self):
         """
-        Calculate projectile trajectory with wind effect.
-
-        This is where YOU will implement the physics calculation!
-        The function should return a list of (x, y) points representing the trajectory.
+        Calculate projectile trajectory with wind effect using Euler integration.
+        Matches the physics model from claude.py for accurate trajectory prediction.
 
         Parameters available:
         - self.wind_force.get(): Wind force (1-12, Gunbound scale)
@@ -273,12 +291,11 @@ class GunboundAimAssistant:
         Returns:
         - List of [x, y] coordinates for the trajectory path
 
-        Tips:
-        - Use physics formulas for projectile motion
-        - Wind affects both horizontal and vertical velocity
-        - Consider gravity (typically around 9.8 or scaled for game)
-        - Different wind angles affect trajectory differently
-        - Gunbound wind 1-12 scale means higher values = stronger wind effect
+        Physics Model (from claude.py):
+        - Uses Euler integration for continuous acceleration effects
+        - Wind is applied as continuous acceleration (not just velocity)
+        - Power scaled by 2 for proper velocity mapping
+        - Wind acceleration scaled by 0.8 for Gunbound-style physics
         """
         trajectory = []
         start_x, start_y = self.player_pos
@@ -289,37 +306,51 @@ class GunboundAimAssistant:
         wind_force = self.wind_force.get()
         wind_angle = self.wind_angle.get()
 
-        # Physics Constants (from main.py)
-        GRAVITY = 9.8
-        WIND_FACTOR = 0.5
-        TIME_STEP = 0.1
-        MAX_TIME = 25.0
+        # Physics Constants (matching claude.py)
+        GRAVITY = 9.8  # m/s²
+        TIME_STEP = 0.01  # seconds (matching claude.py)
+        MAX_TIME = 60.0  # maximum simulation time
 
         # Convert angles to radians
-        theta = math.radians(shot_angle)  # Shot angle
-        wind_a = math.radians(wind_angle)  # Wind angle
+        shot_radians = math.radians(shot_angle)
+        wind_radians = math.radians(wind_angle)
 
-        t = 0
-        while t < MAX_TIME:
-            # Wind Decomposition (main.py formula)
-            wx = wind_force * math.cos(wind_a) * WIND_FACTOR
-            wy = wind_force * math.sin(wind_a) * WIND_FACTOR
+        # Initial velocity (scale power to velocity - matching claude.py)
+        v0 = power * 0.75  # m/s
+        vx = v0 * math.cos(shot_radians)
+        vy = v0 * math.sin(shot_radians)
 
-            # Trajectory math (from main.py)
-            dx = (power * math.cos(theta) * t) + (wx * t)
-            dy = (power * math.sin(theta) * t) - (0.5 * GRAVITY * t**2) + (wy * t)
+        # Wind acceleration components (scaled appropriately - matching claude.py)
+        wind_accel = wind_force * 0.5  # m/s²
+        wind_ax = wind_accel * math.cos(wind_radians)
+        wind_ay = wind_accel * math.sin(wind_radians)
 
-            # Convert to canvas coordinates
-            screen_x = start_x + dx
-            screen_y = start_y - dy  # Invert Y for canvas
+        # Initialize position
+        x, y = 0.0, 0.0
+        t = 0.0
 
+        # Simulate until projectile hits ground or goes out of bounds
+        while y >= 0 and t < MAX_TIME:
+            # Convert to canvas coordinates and store
+            screen_x = start_x + x
+            screen_y = start_y - y  # Invert Y for canvas
             trajectory.append([screen_x, screen_y])
 
-            # Stop if off screen vertically
-            if screen_y > 815:
-                break
+            # Update velocities (Euler integration - matching claude.py)
+            vx += wind_ax * TIME_STEP
+            vy += wind_ay * TIME_STEP
+            vy -= GRAVITY * TIME_STEP  # Gravity always pulls down
 
+            # Update position
+            x += vx * TIME_STEP
+            y += vy * TIME_STEP
+
+            # Update time
             t += TIME_STEP
+
+            # Stop if projectile goes too far out of bounds
+            if x > 1050 or x < -200 or y < -200:
+                break
 
         return trajectory
 
