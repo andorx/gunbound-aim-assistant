@@ -7,6 +7,7 @@ An overlay tool to help with aiming calculations and trajectory visualization
 import tkinter as tk
 from tkinter import ttk
 import math
+import sys
 
 
 class CircularKnob(tk.Canvas):
@@ -53,14 +54,24 @@ class CircularKnob(tk.Canvas):
                 text=label, fill="#718096", font=("Arial", 8, "bold")
             )
 
-        # Draw tick marks every 45 degrees
-        for tick_angle in range(0, 360, 45):
+        # Draw tick marks every 30 degrees (hours)
+        for tick_angle in range(0, 360, 30):
             angle_rad = math.radians(tick_angle)
+            # Make hour marks slightly longer
             x1 = self.center_x + (self.radius - 5) * math.cos(angle_rad)
             y1 = self.center_y - (self.radius - 5) * math.sin(angle_rad)
             x2 = self.center_x + (self.radius - 10) * math.cos(angle_rad)
             y2 = self.center_y - (self.radius - 10) * math.sin(angle_rad)
             self.create_line(x1, y1, x2, y2, fill="#718096", width=2)
+            
+        # Draw smaller ticks for half-hours (15 degrees offset)
+        for tick_angle in range(15, 360, 30):
+            angle_rad = math.radians(tick_angle)
+            x1 = self.center_x + (self.radius - 5) * math.cos(angle_rad)
+            y1 = self.center_y - (self.radius - 5) * math.sin(angle_rad)
+            x2 = self.center_x + (self.radius - 8) * math.cos(angle_rad)
+            y2 = self.center_y - (self.radius - 8) * math.sin(angle_rad)
+            self.create_line(x1, y1, x2, y2, fill="#4a5568", width=1)
 
         # Calculate knob position based on angle
         angle_rad = math.radians(self.angle)
@@ -74,10 +85,11 @@ class CircularKnob(tk.Canvas):
             fill="#63b3ed", outline="#3182ce", width=2
         )
 
-        # Draw angle text in center
+        # Draw clock time text in center
+        clock_text = self.format_clock_time(self.angle)
         self.create_text(
             self.center_x, self.center_y,
-            text=f"{self.angle:.0f}°", fill="#e2e8f0",
+            text=clock_text, fill="#e2e8f0",
             font=("Arial", 10, "bold")
         )
 
@@ -99,12 +111,41 @@ class CircularKnob(tk.Canvas):
         if angle < 0:
             angle += 360
 
-        self.angle = angle
+        # Snap to nearest 15 degrees (30 minutes on clock)
+        step = 15
+        snapped_angle = round(angle / step) * step
+        snapped_angle = snapped_angle % 360
+
+        self.angle = snapped_angle
         self.draw_knob()
 
         # Call command if provided
         if self.command:
             self.command(self.angle)
+
+    def format_clock_time(self, angle):
+        """Convert angle to clock string (e.g. 1, 1:30, 12)"""
+        # 90 degrees is 12 o'clock
+        # Moving clockwise (decreasing angle in standard trig)
+        
+        # Calculate deviation from 12 o'clock (90 degrees)
+        # Clockwise distance in degrees
+        deg_from_12 = (90 - angle) % 360
+        
+        # 30 degrees = 1 hour
+        hours_float = deg_from_12 / 30
+        hour = int(hours_float)
+        minute_part = hours_float - hour
+        
+        # Handle 0 hour as 12
+        if hour == 0:
+            hour = 12
+            
+        # Check if it's a half hour (approx 0.5)
+        if abs(minute_part - 0.5) < 0.1:
+            return f"{hour}:30"
+        else:
+            return f"{hour}"
 
     def get_angle(self):
         """Get current angle value"""
@@ -119,27 +160,54 @@ class CircularKnob(tk.Canvas):
 class GunboundAimAssistant:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gunbound Aim Assistant")
-        self.root.geometry("1300x850")
-        self.root.resizable(False, False)  # Disable window resizing
+        self.root.title("Aim Controls")
+        self.root.geometry("300x600")  # Smaller size for just controls
+        self.root.resizable(False, False)
 
+        # Handle window closing
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Create the separate overlay window
+        self.overlay_window = tk.Toplevel(self.root)
+        self.overlay_window.title("Gunbound Overlay")
+        self.overlay_window.geometry("1050x850")
+        self.overlay_window.resizable(False, False)
+        
+        # Overlay specific settings
+        self.overlay_window.attributes("-alpha", 0.9)
+        self.overlay_window.attributes("-topmost", True)
+        
         # Canvas position tracking
         self.dragging_player = False
         self.dragging_enemy = False
-        self.player_pos = [200, 600]  # [x, y] for player gun barrel
-        self.enemy_pos = [850, 600]   # [x, y] for enemy tank
+        self.player_pos = [200, 600]
+        self.enemy_pos = [850, 600]
+
+        # Click-through mode
+        self.click_through_enabled = False
 
         # Setup UI
         self.setup_control_panel()
         self.setup_canvas()
 
+        # Bind keyboard shortcut to root so it works when controls are focused
+        self.root.bind("<Command-t>", self.toggle_click_through)
+        # Also bind to overlay in case it has focus
+        self.overlay_window.bind("<Command-t>", self.toggle_click_through)
+
         # Initial draw
         self.update_visualization()
 
+    def on_close(self):
+        """Handle application closure"""
+        self.root.destroy()
+        sys.exit(0)
+
     def setup_control_panel(self):
         """Create the control panel with input fields"""
-        control_frame = ttk.Frame(self.root)
-        control_frame.pack(side=tk.LEFT, fill=tk.Y, expand=True)
+        # Control panel now takes up the whole main window
+        control_frame = ttk.Frame(self.root, padding="10")
+        control_frame.pack(fill=tk.BOTH, expand=True)
 
         # Title
         ttk.Label(control_frame, text="Wind Settings", font=("Arial", 12, "bold")).pack(pady=5)
@@ -186,20 +254,30 @@ class GunboundAimAssistant:
         # Shot Power
         ttk.Label(control_frame, text="Shot Power:").pack(anchor=tk.W, pady=(10, 0))
         self.shot_power = tk.DoubleVar(value=60.0)
-        ttk.Scale(control_frame, from_=0, to=130, variable=self.shot_power,
+        ttk.Scale(control_frame, from_=0, to=300, variable=self.shot_power,
                  orient=tk.HORIZONTAL, command=self.on_shot_power_change).pack(fill=tk.X, pady=5)
         self.shot_power_label = ttk.Label(control_frame, text="60.0")
         self.shot_power_label.pack(anchor=tk.E)
 
+        ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
+
+        # Transparency Settings
+        ttk.Label(control_frame, text="Overlay Controls", font=("Arial", 12, "bold")).pack(pady=5)
+
+        # Instructions for click-through shortcut
+        ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=2)
+        ttk.Label(control_frame, text="When enabled, the overlay\nbecomes transparent and\nlets you click the game.", font=("Arial", 9), foreground="#718096").pack(anchor=tk.W, pady=0)
+        
+        # Explicit button for toggling
+        ttk.Button(control_frame, text="Toggle Click-Through", command=self.toggle_click_through).pack(fill=tk.X, pady=10)
+
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
     def setup_canvas(self):
-        """Create the drawing canvas"""
-        canvas_frame = ttk.Frame(self.root, padding="10")
-        canvas_frame.pack(side=tk.RIGHT)
-
-        self.canvas = tk.Canvas(canvas_frame, bg="#1a1a2e", width=1050, height=815)
-        self.canvas.pack()
+        """Create the drawing canvas on the overlay window"""
+        # Canvas attached directly to overlay_window for better transparency support
+        self.canvas = tk.Canvas(self.overlay_window, bg="#1a1a2e", width=1050, height=850, highlightthickness=0)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
 
         # Bind mouse events for dragging
         self.canvas.bind("<Button-1>", self.on_canvas_click)
@@ -276,7 +354,60 @@ class GunboundAimAssistant:
         self.dragging_player = False
         self.dragging_enemy = False
 
-    def calculate_trajectory(self):
+    def toggle_click_through(self, event=None):
+        """Toggle click-through mode to see through and interact with windows behind"""
+        self.click_through_enabled = not self.click_through_enabled
+
+        if self.click_through_enabled:
+            # Enable click-through mode
+            # Make overlay window more transparent to see through clearly
+            # self.overlay_window.attributes("-alpha", 0.3)  # Replaced by transparent background
+            # Ensure it stays on top
+            self.overlay_window.attributes("-topmost", True)
+            
+            # Platform-specific: Enable click-through on macOS
+            if sys.platform == 'darwin':
+                try:
+                    # Set transparent background
+                    self.overlay_window.attributes("-transparent", True)
+                    self.canvas.config(bg='systemTransparent')
+                    
+                    # Use PyObjC to access macOS NSWindow API
+                    from Cocoa import NSApp  # type: ignore
+                    
+                    # Let's try applying to all windows that match the overlay dimensions or just apply to the last created one
+                    for window in NSApp.windows():
+                        
+                        # Heuristic: The main window has title "Aim Controls"
+                        if window.title() != "Aim Controls":
+                             window.setIgnoresMouseEvents_(True)
+                             
+                except Exception as e:
+                    print(f"Could not enable click-through: {e}")
+                    print("Note: Install PyObjC with: pip install pyobjc-framework-Cocoa")
+        else:
+            # Disable click-through mode
+            # Restore normal transparency
+            # self.overlay_window.attributes("-alpha", 0.9)
+            
+            # Platform-specific: Disable click-through on macOS
+            if sys.platform == 'darwin':
+                try:
+                    # Restore opaque background
+                    self.overlay_window.attributes("-transparent", False)
+                    self.canvas.config(bg='#1a1a2e')
+                    
+                    from Cocoa import NSApp  # type: ignore
+                    
+                    for window in NSApp.windows():
+                        # Re-enable events for all windows (safe for control window too as it defaults to False)
+                        # or just target the transparent ones
+                        window.setIgnoresMouseEvents_(False)
+                        
+                except Exception as e:
+                    print(f"Could not disable click-through: {e}")
+
+    def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None):
         """
         Calculate projectile trajectory with wind effect using Euler integration.
         Matches the physics model from claude.py for accurate trajectory prediction.
@@ -303,8 +434,10 @@ class GunboundAimAssistant:
         # Get input parameters
         power = self.shot_power.get()
         shot_angle = self.shot_angle.get()
-        wind_force = self.wind_force.get()
-        wind_angle = self.wind_angle.get()
+        
+        # Use overrides if provided, otherwise use current settings
+        wind_force = override_wind_force if override_wind_force is not None else self.wind_force.get()
+        wind_angle = override_wind_angle if override_wind_angle is not None else self.wind_angle.get()
 
         # Physics Constants (matching claude.py)
         GRAVITY = 9.8  # m/s²
@@ -316,12 +449,12 @@ class GunboundAimAssistant:
         wind_radians = math.radians(wind_angle)
 
         # Initial velocity (scale power to velocity - matching claude.py)
-        v0 = power * 0.75  # m/s
+        v0 = power * 0.5  # m/s
         vx = v0 * math.cos(shot_radians)
         vy = v0 * math.sin(shot_radians)
 
         # Wind acceleration components (scaled appropriately - matching claude.py)
-        wind_accel = wind_force * 0.5  # m/s²
+        wind_accel = wind_force * 0.1  # m/s²
         wind_ax = wind_accel * math.cos(wind_radians)
         wind_ay = wind_accel * math.sin(wind_radians)
 
@@ -349,7 +482,7 @@ class GunboundAimAssistant:
             t += TIME_STEP
 
             # Stop if projectile goes too far out of bounds
-            if x > 1050 or x < -200 or y < -200:
+            if x > 1050 or x < -400 or y < -400:
                 break
 
         return trajectory
@@ -368,13 +501,25 @@ class GunboundAimAssistant:
 
         # Draw player pointer (green)
         px, py = self.player_pos
-        self.canvas.create_oval(px-15, py-15, px+15, py+15, fill="#48bb78", outline="#2f855a", width=3)
-        self.canvas.create_text(px, py-25, text="YOU", fill="#48bb78", font=("Arial", 10, "bold"))
+        self.canvas.create_oval(px-10, py-10, px+10, py+10, fill="#48bb78", outline="#2f855a", width=3)
 
         # Draw enemy pointer (red)
         ex, ey = self.enemy_pos
-        self.canvas.create_oval(ex-15, ey-15, ex+15, ey+15, fill="#f56565", outline="#c53030", width=3)
-        self.canvas.create_text(ex, ey-25, text="ENEMY", fill="#f56565", font=("Arial", 10, "bold"))
+        self.canvas.create_oval(ex-10, ey-10, ex+10, ey+10, fill="#f56565", outline="#c53030", width=3)
+
+        # Draw zero-wind trajectory (baseline)
+        zero_wind_trajectory = self.calculate_trajectory(override_wind_force=0)
+        if len(zero_wind_trajectory) > 1:
+            # Draw trajectory line in red
+            for i in range(len(zero_wind_trajectory) - 1):
+                x1, y1 = zero_wind_trajectory[i]
+                x2, y2 = zero_wind_trajectory[i + 1]
+                self.canvas.create_line(x1, y1, x2, y2, fill="#fc8181", width=2, dash=(6, 4))
+
+            # Draw predicted landing point for zero wind
+            last_x, last_y = zero_wind_trajectory[-1]
+            self.canvas.create_oval(last_x-6, last_y-6, last_x+6, last_y+6,
+                                   outline="#fc8181", width=1, dash=(6, 4))
 
         # Draw trajectory
         trajectory = self.calculate_trajectory()
