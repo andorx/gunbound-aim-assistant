@@ -175,7 +175,8 @@ class GunboundAimAssistant:
         
         # Overlay specific settings
         self.overlay_window.attributes("-alpha", 0.9)
-        self.overlay_window.attributes("-topmost", True)
+        self.overlay_window.attributes("-transparent", True)
+        self.overlay_window.attributes("-topmost", False)
         
         # Canvas position tracking
         self.dragging_player = False
@@ -251,13 +252,8 @@ class GunboundAimAssistant:
         self.shot_angle_label = ttk.Label(control_frame, text="45.0°")
         self.shot_angle_label.pack(anchor=tk.E)
 
-        # Shot Power
-        ttk.Label(control_frame, text="Shot Power:").pack(anchor=tk.W, pady=(10, 0))
-        self.shot_power = tk.DoubleVar(value=60.0)
-        ttk.Scale(control_frame, from_=0, to=300, variable=self.shot_power,
-                 orient=tk.HORIZONTAL, command=self.on_shot_power_change).pack(fill=tk.X, pady=5)
-        self.shot_power_label = ttk.Label(control_frame, text="60.0")
-        self.shot_power_label.pack(anchor=tk.E)
+        # Shot Power UI removed as requested
+        self.shot_power = tk.DoubleVar(value=0.0)
 
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
 
@@ -276,7 +272,7 @@ class GunboundAimAssistant:
     def setup_canvas(self):
         """Create the drawing canvas on the overlay window"""
         # Canvas attached directly to overlay_window for better transparency support
-        self.canvas = tk.Canvas(self.overlay_window, bg="#1a1a2e", width=1050, height=850, highlightthickness=0)
+        self.canvas = tk.Canvas(self.overlay_window, bg="systemTransparent", width=1050, height=850, highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
         # Bind mouse events for dragging
@@ -306,13 +302,6 @@ class GunboundAimAssistant:
         self.shot_angle.set(rounded_value)
         self.on_param_change()
 
-    def on_shot_power_change(self, value):
-        """Handle shot power slider change with fine step resolution"""
-        # Round to 0.1 for smooth updates
-        rounded_value = round(float(value) * 10) / 10
-        self.shot_power.set(rounded_value)
-        self.on_param_change()
-
     def set_wind_angle(self, angle):
         """Set wind angle programmatically (updates knob)"""
         self.wind_angle.set(angle)
@@ -324,7 +313,6 @@ class GunboundAimAssistant:
         # Update labels with integer values
         self.wind_force_label.config(text=f"{int(self.wind_force.get())}")
         self.shot_angle_label.config(text=f"{self.shot_angle.get():.1f}°")
-        self.shot_power_label.config(text=f"{self.shot_power.get():.1f}")
 
         # Live update trajectory
         self.update_visualization()
@@ -354,30 +342,29 @@ class GunboundAimAssistant:
         self.dragging_player = False
         self.dragging_enemy = False
 
+        print('on_canvas_release')
+        # Ensure final update
+        self.update_visualization()
+
     def toggle_click_through(self, event=None):
         """Toggle click-through mode to see through and interact with windows behind"""
         self.click_through_enabled = not self.click_through_enabled
 
         if self.click_through_enabled:
             # Enable click-through mode
-            # Make overlay window more transparent to see through clearly
-            # self.overlay_window.attributes("-alpha", 0.3)  # Replaced by transparent background
             # Ensure it stays on top
             self.overlay_window.attributes("-topmost", True)
             
             # Platform-specific: Enable click-through on macOS
             if sys.platform == 'darwin':
                 try:
-                    # Set transparent background
-                    self.overlay_window.attributes("-transparent", True)
-                    self.canvas.config(bg='systemTransparent')
                     
                     # Use PyObjC to access macOS NSWindow API
                     from Cocoa import NSApp  # type: ignore
                     
                     # Let's try applying to all windows that match the overlay dimensions or just apply to the last created one
                     for window in NSApp.windows():
-                        
+
                         # Heuristic: The main window has title "Aim Controls"
                         if window.title() != "Aim Controls":
                              window.setIgnoresMouseEvents_(True)
@@ -385,17 +372,13 @@ class GunboundAimAssistant:
                 except Exception as e:
                     print(f"Could not enable click-through: {e}")
                     print("Note: Install PyObjC with: pip install pyobjc-framework-Cocoa")
-        else:
-            # Disable click-through mode
-            # Restore normal transparency
-            # self.overlay_window.attributes("-alpha", 0.9)
+        else:            
+            self.overlay_window.attributes("-topmost", False)
+
             
             # Platform-specific: Disable click-through on macOS
             if sys.platform == 'darwin':
                 try:
-                    # Restore opaque background
-                    self.overlay_window.attributes("-transparent", False)
-                    self.canvas.config(bg='#1a1a2e')
                     
                     from Cocoa import NSApp  # type: ignore
                     
@@ -407,7 +390,7 @@ class GunboundAimAssistant:
                 except Exception as e:
                     print(f"Could not disable click-through: {e}")
 
-    def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None):
+    def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None, override_power=None):
         """
         Calculate projectile trajectory with wind effect using Euler integration.
         Matches the physics model from claude.py for accurate trajectory prediction.
@@ -432,10 +415,10 @@ class GunboundAimAssistant:
         start_x, start_y = self.player_pos
 
         # Get input parameters
-        power = self.shot_power.get()
         shot_angle = self.shot_angle.get()
         
         # Use overrides if provided, otherwise use current settings
+        power = override_power if override_power is not None else self.shot_power.get()
         wind_force = override_wind_force if override_wind_force is not None else self.wind_force.get()
         wind_angle = override_wind_angle if override_wind_angle is not None else self.wind_angle.get()
 
@@ -489,6 +472,9 @@ class GunboundAimAssistant:
 
     def update_visualization(self):
         """Update the canvas with all visual elements"""
+        # Automatically calculate required power first
+        self.solve_for_power()
+        
         self.canvas.delete("all")
 
         # Draw ground reference line
@@ -502,12 +488,13 @@ class GunboundAimAssistant:
         # Draw player pointer (green)
         px, py = self.player_pos
         self.canvas.create_oval(px-10, py-10, px+10, py+10, fill="#48bb78", outline="#2f855a", width=3)
-
+        
         # Draw enemy pointer (red)
         ex, ey = self.enemy_pos
         self.canvas.create_oval(ex-10, ey-10, ex+10, ey+10, fill="#f56565", outline="#c53030", width=3)
 
-        # Draw zero-wind trajectory (baseline)
+        # Draw zero-wind trajectory (baseline) using the CALCULATED power
+        # This shows "where would this shot land if there was 0 wind?"
         zero_wind_trajectory = self.calculate_trajectory(override_wind_force=0)
         if len(zero_wind_trajectory) > 1:
             # Draw trajectory line in red
@@ -521,7 +508,7 @@ class GunboundAimAssistant:
             self.canvas.create_oval(last_x-6, last_y-6, last_x+6, last_y+6,
                                    outline="#fc8181", width=1, dash=(6, 4))
 
-        # Draw trajectory
+        # Draw trajectory (this uses the calculated power from solve_for_power)
         trajectory = self.calculate_trajectory()
         if len(trajectory) > 1:
             # Draw trajectory line
@@ -536,7 +523,83 @@ class GunboundAimAssistant:
             # Draw predicted landing point
             last_x, last_y = trajectory[-1]
             self.canvas.create_oval(last_x-8, last_y-8, last_x+8, last_y+8,
-                                   outline="#ecc94b", width=2)
+                                    outline="#ecc94b", width=2)
+
+        # Calculate and display distance
+        ex, ey = self.enemy_pos
+        px, py = self.player_pos
+        distance = math.sqrt((ex - px)**2 + (ey - py)**2)
+        self.canvas.create_text((px + ex) / 2, (py + ey) / 2 - 20,
+                               text=f"Distance: {distance:.1f}px",
+                               fill="#cbd5e0", font=("Arial", 9))
+
+        # Draw wind indicator
+        self.draw_wind_indicator()
+
+    def solve_for_power(self):
+        """
+        Linearly increase power to find the best shot.
+        Stops when trajectory hits the target or starts moving away (local minimum).
+        Updates self.shot_power.
+        """
+        ex, ey = self.enemy_pos
+        px, py = self.player_pos  # Need these for distance calculation too
+        
+        # Search parameters
+        start_p = 0.0
+        max_p = 400.0
+        step_p = 1.0  # Resolution of power search
+        
+        best_p = 0.0
+        min_dist = float('inf')
+        
+        # Tolerance for "hit" (in pixels) - allows missing a little bit
+        HIT_TOLERANCE = 5.0
+        
+        try:
+            # Linear scan from 0 to max_p
+            # We use a while loop to handle float steps easily
+            current_p = start_p
+            while current_p <= max_p:
+                # Simulate with this power
+                traj = self.calculate_trajectory(override_power=current_p)
+                
+                if not traj:
+                    current_p += step_p
+                    continue
+                
+                # Calculate minimum distance from this trajectory to the enemy
+                # We check every point in the trajectory to find the closest pass
+                current_traj_min_dist = float('inf')
+                for tx, ty in traj:
+                    d_sq = (tx - ex)**2 + (ty - ey)**2
+                    if d_sq < current_traj_min_dist:
+                        current_traj_min_dist = d_sq
+                
+                current_dist = math.sqrt(current_traj_min_dist)
+                
+                # Check for "Hit"
+                if current_dist <= HIT_TOLERANCE:
+                    best_p = current_p
+                    break # Found a valid shot, stop searching
+                
+                # Check for Local Minimum (closest point)
+                if current_dist < min_dist:
+                    # We are getting closer
+                    min_dist = current_dist
+                    best_p = current_p
+                elif current_dist > min_dist + 1.0: # Add slight buffer for noise
+                    # We have passed the closest point and are moving away
+                    # The previous point (best_p) was a local minimum
+                    break
+                
+                current_p += step_p
+                    
+            # Set the best power found
+            self.shot_power.set(best_p)
+            
+        except Exception as e:
+            print(f"Error in auto-aim: {e}")
 
         # Calculate and display distance
         distance = math.sqrt((ex - px)**2 + (ey - py)**2)
