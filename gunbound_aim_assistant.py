@@ -171,7 +171,7 @@ class GunboundAimAssistant:
     def __init__(self, root):
         self.root = root
         self.root.title("Aim Controls")
-        self.root.geometry("300x800")  # Taller to accommodate window positioning controls
+        self.root.geometry("300x720")  # Taller to accommodate window positioning controls
         self.root.resizable(False, False)
 
         # Handle window closing
@@ -208,6 +208,9 @@ class GunboundAimAssistant:
 
         # Initial draw
         self.update_visualization()
+        
+        # Set initial click-through UI state
+        self.update_click_through_ui()
 
     def on_close(self):
         """Handle application closure"""
@@ -249,11 +252,6 @@ class GunboundAimAssistant:
         # Store wind angle variable
         self.wind_angle = tk.DoubleVar(value=90.0)
 
-        ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
-
-        # Shot Settings
-        ttk.Label(control_frame, text="Shot Settings", font=("Arial", 12, "bold")).pack(pady=5)
-
         # Shot Angle
         ttk.Label(control_frame, text="Shot Angle (°):").pack(anchor=tk.W)
         self.shot_angle = tk.DoubleVar(value=45.0)
@@ -265,7 +263,7 @@ class GunboundAimAssistant:
         # Shot Power UI removed as requested
         self.shot_power = tk.DoubleVar(value=0.0)
 
-        ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
+        ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
         # Transparency Settings
         ttk.Label(control_frame, text="Overlay Controls", font=("Arial", 12, "bold")).pack(pady=5)
@@ -274,7 +272,13 @@ class GunboundAimAssistant:
         ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=2)
         
         # Explicit button for toggling
-        ttk.Button(control_frame, text="Toggle Click-Through", command=self.toggle_click_through).pack(fill=tk.X, pady=10)
+        self.click_through_button = ttk.Button(control_frame, text="Enable Click-Through", command=self.toggle_click_through)
+        self.click_through_button.pack(fill=tk.X, pady=10)
+        
+        # Status label for click-through mode
+        self.click_through_status_label = tk.Label(control_frame, text="✗ Click-Through: Disabled", 
+                                                    fg="#4a5568", font=("Arial", 9))
+        self.click_through_status_label.pack(anchor=tk.W, pady=2)
 
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
@@ -291,23 +295,16 @@ class GunboundAimAssistant:
             offset_frame = ttk.Frame(control_frame)
             offset_frame.pack(fill=tk.X, pady=5)
 
-            ttk.Label(offset_frame, text="X Offset:").grid(row=0, column=0, sticky=tk.W)
+            ttk.Label(offset_frame, text="X:").grid(row=0, column=0, sticky=tk.W)
             self.offset_x = tk.IntVar(value=0)
-            ttk.Entry(offset_frame, textvariable=self.offset_x, width=10).grid(row=0, column=1, padx=5)
+            ttk.Entry(offset_frame, textvariable=self.offset_x, width=12).grid(row=0, column=1, padx=5)
 
-            ttk.Label(offset_frame, text="Y Offset:").grid(row=1, column=0, sticky=tk.W)
-            self.offset_y = tk.IntVar(value=0)
-            ttk.Entry(offset_frame, textvariable=self.offset_y, width=10).grid(row=1, column=1, padx=5)
+            ttk.Label(offset_frame, text="Y:").grid(row=0, column=2, sticky=tk.W)
+            self.offset_y = tk.IntVar(value=-30)
+            ttk.Entry(offset_frame, textvariable=self.offset_y, width=12).grid(row=0, column=3, padx=5)
 
             # Position button
             ttk.Button(control_frame, text="Position Overlay", command=self.position_overlay_to_target).pack(fill=tk.X, pady=10)
-
-            # Status label
-            self.position_status = tk.StringVar(value="")
-            ttk.Label(control_frame, textvariable=self.position_status, 
-                     font=("Arial", 9), foreground="#4a5568", wraplength=280).pack(pady=5)
-
-            ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
     def setup_canvas(self):
         """Create the drawing canvas on the overlay window"""
@@ -319,9 +316,6 @@ class GunboundAimAssistant:
         self.canvas.bind("<Button-1>", self.on_canvas_click)
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_canvas_release)
-
-        # Draw ground line reference
-        self.canvas.create_line(0, 550, 1050, 550, fill="#4a5568", width=2, dash=(5, 5))
 
     def on_wind_knob_change(self, angle):
         """Handle wind angle knob change"""
@@ -388,6 +382,9 @@ class GunboundAimAssistant:
     def toggle_click_through(self, event=None):
         """Toggle click-through mode to see through and interact with windows behind"""
         self.click_through_enabled = not self.click_through_enabled
+        
+        # Update UI
+        self.update_click_through_ui()
 
         if self.click_through_enabled:
             # Enable click-through mode
@@ -424,6 +421,15 @@ class GunboundAimAssistant:
                         
                 except Exception as e:
                     print(f"Could not disable click-through: {e}")
+    
+    def update_click_through_ui(self):
+        """Update UI elements to reflect current click-through state"""
+        if self.click_through_enabled:
+            self.click_through_button.config(text="Disable Click-Through")
+            self.click_through_status_label.config(text="✓ Click-Through: Enabled", fg="#48bb78")
+        else:
+            self.click_through_button.config(text="Enable Click-Through")
+            self.click_through_status_label.config(text="✗ Click-Through: Disabled", fg="#4a5568")
 
     def get_shot_direction(self):
         """Return horizontal direction based on target position."""
@@ -518,21 +524,13 @@ class GunboundAimAssistant:
         
         self.canvas.delete("all")
 
-        # Draw ground reference line
-        self.canvas.create_line(0, 550, 1050, 550, fill="#4a5568", width=2, dash=(5, 5))
-        self.canvas.create_text(525, 565, text="Ground Reference", fill="#4a5568", font=("Arial", 8))
-
-        # Draw distance reference
-        self.canvas.create_text(50, 20, text="Scale: 100px ≈ 1 screen distance",
-                               fill="#718096", font=("Arial", 8))
-
         # Draw player pointer (green)
         px, py = self.player_pos
-        self.canvas.create_oval(px-10, py-10, px+10, py+10, fill="#48bb78", outline="#2f855a", width=3)
+        self.canvas.create_oval(px-6, py-6, px+6, py+6, fill="#48bb78", outline="#2f855a", width=3)
         
         # Draw enemy pointer (red)
         ex, ey = self.enemy_pos
-        self.canvas.create_oval(ex-10, ey-10, ex+10, ey+10, fill="#f56565", outline="#c53030", width=3)
+        self.canvas.create_oval(ex-6, ey-6, ex+6, ey+6, fill="#f56565", outline="#c53030", width=3)
 
         # Draw zero-wind trajectory (baseline) using the CALCULATED power
         # This shows "where would this shot land if there was 0 wind?"
@@ -751,12 +749,6 @@ class GunboundAimAssistant:
 
             # Update overlay window position
             self.overlay_window.geometry(f"{width}x{height}+{new_x}+{new_y}")
-
-            self.position_status.set(
-                f"Positioned overlay at ({new_x}, {new_y})\n"
-                f"Target: '{target_window['title']}'\n"
-                f"Original: ({target_window['x']}, {target_window['y']})"
-            )
         else:
             # Error message already set in find_window_by_title
             pass
