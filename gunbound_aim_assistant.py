@@ -211,6 +211,14 @@ class GunboundAimAssistant:
         
         # Set initial click-through UI state
         self.update_click_through_ui()
+        
+        # Position overlay window to the right of controls window
+        self.root.update_idletasks()
+        controls_x = self.root.winfo_x()
+        controls_y = self.root.winfo_y()
+        controls_width = self.root.winfo_width()
+        overlay_x = controls_x + controls_width
+        self.overlay_window.geometry(f"1050x850+{overlay_x}+{controls_y}")
 
     def on_close(self):
         """Handle application closure"""
@@ -556,8 +564,8 @@ class GunboundAimAssistant:
                 x2, y2 = trajectory[i + 1]
                 # Color gradient from green to yellow based on position
                 progress = i / len(trajectory)
-                color = self.interpolate_color("#48bb78", "#ecc94b", progress)
-                self.canvas.create_line(x1, y1, x2, y2, fill=color, width=2)
+                color = self.interpolate_color("#22c55e", "#2563eb", progress)
+                self.canvas.create_line(x1, y1, x2, y2, fill=color, width=1)
 
             # Draw predicted landing point
             last_x, last_y = trajectory[-1]
@@ -655,8 +663,8 @@ class GunboundAimAssistant:
         wind_force = self.wind_force.get()
         wind_angle = self.wind_angle.get()
 
-        # Position in top-right corner
-        center_x, center_y = 975, 80
+        # Position in center of overlay window
+        center_x, center_y = 525, 75
         arrow_length = 30
 
         # Calculate arrow end point
@@ -666,15 +674,15 @@ class GunboundAimAssistant:
 
         # Draw arrow circle background
         self.canvas.create_oval(center_x-40, center_y-40, center_x+40, center_y+40,
-                               fill="#2d3748", outline="#4a5568", width=2)
+                               outline="#ef4444", width=2)
 
         # Draw arrow line
         self.canvas.create_line(center_x, center_y, end_x, end_y,
-                               fill="#63b3ed", width=3, arrow=tk.LAST)
+                               fill="#ef4444", width=2, arrow=tk.LAST)
 
         # Draw wind force text (as integer, like Gunbound)
         self.canvas.create_text(center_x, center_y+50, text=f"Wind: {int(wind_force)}",
-                               fill="#63b3ed", font=("Arial", 10, "bold"))
+                               fill="#ef4444", font=("Arial", 10, "bold"))
 
     def interpolate_color(self, color1, color2, t):
         """Interpolate between two hex colors"""
