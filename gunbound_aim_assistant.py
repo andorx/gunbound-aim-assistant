@@ -9,6 +9,16 @@ from tkinter import ttk
 import math
 import sys
 
+# macOS-specific imports for window detection
+if sys.platform == 'darwin':
+    try:
+        from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
+        from Quartz.CoreGraphics import CGRect, CGRectNull
+        from Cocoa import NSWorkspace
+    except ImportError:
+        print("Warning: pyobjc-framework-Quartz not installed. Window detection will not work.")
+        print("Install with: pip install pyobjc-framework-Quartz")
+
 
 class CircularKnob(tk.Canvas):
     """A circular knob widget for selecting angles 0-360 degrees"""
@@ -161,7 +171,7 @@ class GunboundAimAssistant:
     def __init__(self, root):
         self.root = root
         self.root.title("Aim Controls")
-        self.root.geometry("300x600")  # Smaller size for just controls
+        self.root.geometry("300x800")  # Taller to accommodate window positioning controls
         self.root.resizable(False, False)
 
         # Handle window closing
@@ -176,7 +186,7 @@ class GunboundAimAssistant:
         # Overlay specific settings
         self.overlay_window.attributes("-alpha", 0.9)
         self.overlay_window.attributes("-transparent", True)
-        self.overlay_window.attributes("-topmost", False)
+        self.overlay_window.attributes("-topmost", True)
         
         # Canvas position tracking
         self.dragging_player = False
@@ -262,12 +272,42 @@ class GunboundAimAssistant:
 
         # Instructions for click-through shortcut
         ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=2)
-        ttk.Label(control_frame, text="When enabled, the overlay\nbecomes transparent and\nlets you click the game.", font=("Arial", 9), foreground="#718096").pack(anchor=tk.W, pady=0)
         
         # Explicit button for toggling
         ttk.Button(control_frame, text="Toggle Click-Through", command=self.toggle_click_through).pack(fill=tk.X, pady=10)
 
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+
+        # Window Positioning Section (macOS only)
+        if sys.platform == 'darwin':
+            ttk.Label(control_frame, text="Window Positioning", font=("Arial", 12, "bold")).pack(pady=(10, 5))
+
+            # Target window title
+            ttk.Label(control_frame, text="Target Window Title:").pack(anchor=tk.W)
+            self.target_window_title = tk.StringVar(value="Gunbound Legend")
+            ttk.Entry(control_frame, textvariable=self.target_window_title).pack(fill=tk.X, pady=5)
+
+            # Position offset frame
+            offset_frame = ttk.Frame(control_frame)
+            offset_frame.pack(fill=tk.X, pady=5)
+
+            ttk.Label(offset_frame, text="X Offset:").grid(row=0, column=0, sticky=tk.W)
+            self.offset_x = tk.IntVar(value=0)
+            ttk.Entry(offset_frame, textvariable=self.offset_x, width=10).grid(row=0, column=1, padx=5)
+
+            ttk.Label(offset_frame, text="Y Offset:").grid(row=1, column=0, sticky=tk.W)
+            self.offset_y = tk.IntVar(value=0)
+            ttk.Entry(offset_frame, textvariable=self.offset_y, width=10).grid(row=1, column=1, padx=5)
+
+            # Position button
+            ttk.Button(control_frame, text="Position Overlay", command=self.position_overlay_to_target).pack(fill=tk.X, pady=10)
+
+            # Status label
+            self.position_status = tk.StringVar(value="")
+            ttk.Label(control_frame, textvariable=self.position_status, 
+                     font=("Arial", 9), foreground="#4a5568", wraplength=280).pack(pady=5)
+
+            ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
     def setup_canvas(self):
         """Create the drawing canvas on the overlay window"""
@@ -342,7 +382,6 @@ class GunboundAimAssistant:
         self.dragging_player = False
         self.dragging_enemy = False
 
-        print('on_canvas_release')
         # Ensure final update
         self.update_visualization()
 
@@ -352,9 +391,7 @@ class GunboundAimAssistant:
 
         if self.click_through_enabled:
             # Enable click-through mode
-            # Ensure it stays on top
-            self.overlay_window.attributes("-topmost", True)
-            
+
             # Platform-specific: Enable click-through on macOS
             if sys.platform == 'darwin':
                 try:
@@ -372,9 +409,7 @@ class GunboundAimAssistant:
                 except Exception as e:
                     print(f"Could not enable click-through: {e}")
                     print("Note: Install PyObjC with: pip install pyobjc-framework-Cocoa")
-        else:            
-            self.overlay_window.attributes("-topmost", False)
-
+        else:
             
             # Platform-specific: Disable click-through on macOS
             if sys.platform == 'darwin':
@@ -390,7 +425,12 @@ class GunboundAimAssistant:
                 except Exception as e:
                     print(f"Could not disable click-through: {e}")
 
-    def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None, override_power=None):
+    def get_shot_direction(self):
+        """Return horizontal direction based on target position."""
+        return 1 if self.enemy_pos[0] >= self.player_pos[0] else -1
+
+    def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None, override_power=None,
+                             override_direction=None):
         """
         Calculate projectile trajectory with wind effect using Euler integration.
         Matches the physics model from claude.py for accurate trajectory prediction.
@@ -421,6 +461,7 @@ class GunboundAimAssistant:
         power = override_power if override_power is not None else self.shot_power.get()
         wind_force = override_wind_force if override_wind_force is not None else self.wind_force.get()
         wind_angle = override_wind_angle if override_wind_angle is not None else self.wind_angle.get()
+        direction = override_direction if override_direction is not None else self.get_shot_direction()
 
         # Physics Constants (matching claude.py)
         GRAVITY = 9.8  # m/s²
@@ -433,7 +474,7 @@ class GunboundAimAssistant:
 
         # Initial velocity (scale power to velocity - matching claude.py)
         v0 = power * 0.5  # m/s
-        vx = v0 * math.cos(shot_radians)
+        vx = v0 * math.cos(shot_radians) * direction
         vy = v0 * math.sin(shot_radians)
 
         # Wind acceleration components (scaled appropriately - matching claude.py)
@@ -445,12 +486,16 @@ class GunboundAimAssistant:
         x, y = 0.0, 0.0
         t = 0.0
 
-        # Simulate until projectile hits ground or goes out of bounds
-        while y >= 0 and t < MAX_TIME:
+        # Simulate until projectile goes out of bounds
+        while t < MAX_TIME:
             # Convert to canvas coordinates and store
             screen_x = start_x + x
             screen_y = start_y - y  # Invert Y for canvas
             trajectory.append([screen_x, screen_y])
+
+            # Stop if projectile goes too far out of bounds
+            if screen_x > 1050 or screen_x < -400 or screen_y > 850 or screen_y < -300:
+                break
 
             # Update velocities (Euler integration - matching claude.py)
             vx += wind_ax * TIME_STEP
@@ -463,10 +508,6 @@ class GunboundAimAssistant:
 
             # Update time
             t += TIME_STEP
-
-            # Stop if projectile goes too far out of bounds
-            if x > 1050 or x < -400 or y < -400:
-                break
 
         return trajectory
 
@@ -554,7 +595,7 @@ class GunboundAimAssistant:
         min_dist = float('inf')
         
         # Tolerance for "hit" (in pixels) - allows missing a little bit
-        HIT_TOLERANCE = 5.0
+        HIT_TOLERANCE = 0.0
         
         try:
             # Linear scan from 0 to max_p
@@ -649,6 +690,76 @@ class GunboundAimAssistant:
         b = int(b1 + (b2 - b1) * t)
 
         return f"#{r:02x}{g:02x}{b:02x}"
+
+    def find_window_by_title(self, target_title):
+        """
+        Find a window by its title on macOS.
+        Returns window info dict with keys: window_id, title, x, y, width, height
+        or None if not found.
+        """
+        if sys.platform != 'darwin':
+            self.position_status.set("Window detection only works on macOS")
+            return None
+
+        try:
+            window_list = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly,
+                kCGNullWindowID
+            )
+
+            for window_info in window_list:
+                window_title = window_info.get('kCGWindowName', '')
+                if window_title and target_title.lower() in window_title.lower():
+                    bounds = window_info.get('kCGWindowBounds', {})
+                    if bounds:
+                        return {
+                            'window_id': window_info.get('kCGWindowNumber'),
+                            'title': window_title,
+                            'x': int(bounds['X']),
+                            'y': int(bounds['Y']),
+                            'width': int(bounds['Width']),
+                            'height': int(bounds['Height'])
+                        }
+
+            self.position_status.set(f"No window found with title '{target_title}'")
+            return None
+
+        except Exception as e:
+            self.position_status.set(f"Error finding window: {e}\n\nGrant Accessibility permissions in System Settings → Privacy & Security")
+            return None
+
+    def position_overlay_to_target(self):
+        """
+        Position the overlay window relative to a target window.
+        Uses window title and offset values from UI controls.
+        """
+        target_title = self.target_window_title.get()
+        offset_x = self.offset_x.get()
+        offset_y = self.offset_y.get()
+
+        # Find the target window
+        target_window = self.find_window_by_title(target_title)
+
+        if target_window:
+            # Calculate new position
+            new_x = target_window['x'] + offset_x
+            new_y = target_window['y'] + offset_y
+
+            # Get current overlay geometry to extract width and height
+            current_geometry = self.overlay_window.geometry()
+            width, height = current_geometry.split('+')[0].split('x')
+
+            # Update overlay window position
+            self.overlay_window.geometry(f"{width}x{height}+{new_x}+{new_y}")
+
+            self.position_status.set(
+                f"Positioned overlay at ({new_x}, {new_y})\n"
+                f"Target: '{target_window['title']}'\n"
+                f"Original: ({target_window['x']}, {target_window['y']})"
+            )
+        else:
+            # Error message already set in find_window_by_title
+            pass
 
 
 def main():

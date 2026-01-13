@@ -1,0 +1,2 @@
+pyobjc-framework-Cocoa>=12.1
+pyobjc-framework-Quartz>=12.1
