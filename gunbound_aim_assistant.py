@@ -73,7 +73,7 @@ class CircularKnob(tk.Canvas):
             x2 = self.center_x + (self.radius - 10) * math.cos(angle_rad)
             y2 = self.center_y - (self.radius - 10) * math.sin(angle_rad)
             self.create_line(x1, y1, x2, y2, fill="#718096", width=2)
-            
+
         # Draw smaller ticks for half-hours (15 degrees offset)
         for tick_angle in range(15, 360, 30):
             angle_rad = math.radians(tick_angle)
@@ -137,20 +137,20 @@ class CircularKnob(tk.Canvas):
         """Convert angle to clock string (e.g. 1, 1:30, 12)"""
         # 90 degrees is 12 o'clock
         # Moving clockwise (decreasing angle in standard trig)
-        
+
         # Calculate deviation from 12 o'clock (90 degrees)
         # Clockwise distance in degrees
         deg_from_12 = (90 - angle) % 360
-        
+
         # 30 degrees = 1 hour
         hours_float = deg_from_12 / 30
         hour = int(hours_float)
         minute_part = hours_float - hour
-        
+
         # Handle 0 hour as 12
         if hour == 0:
             hour = 12
-            
+
         # Check if it's a half hour (approx 0.5)
         if abs(minute_part - 0.5) < 0.1:
             return f"{hour}:30"
@@ -173,6 +173,7 @@ class GunboundAimAssistant:
         self.root.title("Aim Controls")
         self.root.geometry("300x720")  # Taller to accommodate window positioning controls
         self.root.resizable(False, False)
+        self.root.attributes("-topmost", True)
 
         # Handle window closing
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -182,12 +183,12 @@ class GunboundAimAssistant:
         self.overlay_window.title("Gunbound Overlay")
         self.overlay_window.geometry("1050x850")
         self.overlay_window.resizable(False, False)
-        
+
         # Overlay specific settings
         self.overlay_window.attributes("-alpha", 0.9)
         self.overlay_window.attributes("-transparent", True)
         self.overlay_window.attributes("-topmost", True)
-        
+
         # Canvas position tracking
         self.dragging_player = False
         self.dragging_enemy = False
@@ -196,22 +197,33 @@ class GunboundAimAssistant:
 
         # Click-through mode
         self.click_through_enabled = False
+        self.click_through_before_space = False  # Track state before Shift hold
+        self.adjust_key_held = False  # Track if Shift is currently being held down
 
         # Setup UI
         self.setup_control_panel()
         self.setup_canvas()
 
-        # Bind keyboard shortcut to root so it works when controls are focused
+        # Bind keyboard shortcuts to root so they work when controls are focused
         self.root.bind("<Command-t>", self.toggle_click_through)
+        self.root.bind("<KeyPress-Shift_L>", self.on_adjust_key_press)
+        self.root.bind("<KeyRelease-Shift_L>", self.on_adjust_key_release)
+        self.root.bind("<KeyPress-Shift_R>", self.on_adjust_key_press)
+        self.root.bind("<KeyRelease-Shift_R>", self.on_adjust_key_release)
+
         # Also bind to overlay in case it has focus
         self.overlay_window.bind("<Command-t>", self.toggle_click_through)
+        self.overlay_window.bind("<KeyPress-Shift_L>", self.on_adjust_key_press)
+        self.overlay_window.bind("<KeyRelease-Shift_L>", self.on_adjust_key_release)
+        self.overlay_window.bind("<KeyPress-Shift_R>", self.on_adjust_key_press)
+        self.overlay_window.bind("<KeyRelease-Shift_R>", self.on_adjust_key_release)
 
         # Initial draw
         self.update_visualization()
-        
+
         # Set initial click-through UI state
         self.update_click_through_ui()
-        
+
         # Position overlay window to the right of controls window
         self.root.update_idletasks()
         controls_x = self.root.winfo_x()
@@ -276,15 +288,16 @@ class GunboundAimAssistant:
         # Transparency Settings
         ttk.Label(control_frame, text="Overlay Controls", font=("Arial", 12, "bold")).pack(pady=5)
 
-        # Instructions for click-through shortcut
+        # Instructions for click-through shortcuts
         ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=2)
-        
+        ttk.Label(control_frame, text="Shift (Hold): Edit Markers", font=("Arial", 9)).pack(anchor=tk.W, pady=2)
+
         # Explicit button for toggling
         self.click_through_button = ttk.Button(control_frame, text="Enable Click-Through", command=self.toggle_click_through)
         self.click_through_button.pack(fill=tk.X, pady=10)
-        
+
         # Status label for click-through mode
-        self.click_through_status_label = tk.Label(control_frame, text="✗ Click-Through: Disabled", 
+        self.click_through_status_label = tk.Label(control_frame, text="✗ Click-Through: Disabled",
                                                     fg="#4a5568", font=("Arial", 9))
         self.click_through_status_label.pack(anchor=tk.W, pady=2)
 
@@ -292,8 +305,6 @@ class GunboundAimAssistant:
 
         # Window Positioning Section (macOS only)
         if sys.platform == 'darwin':
-            ttk.Label(control_frame, text="Window Positioning", font=("Arial", 12, "bold")).pack(pady=(10, 5))
-
             # Target window title
             ttk.Label(control_frame, text="Target Window Title:").pack(anchor=tk.W)
             self.target_window_title = tk.StringVar(value="Gunbound Legend")
@@ -390,7 +401,7 @@ class GunboundAimAssistant:
     def toggle_click_through(self, event=None):
         """Toggle click-through mode to see through and interact with windows behind"""
         self.click_through_enabled = not self.click_through_enabled
-        
+
         # Update UI
         self.update_click_through_ui()
 
@@ -400,36 +411,36 @@ class GunboundAimAssistant:
             # Platform-specific: Enable click-through on macOS
             if sys.platform == 'darwin':
                 try:
-                    
+
                     # Use PyObjC to access macOS NSWindow API
                     from Cocoa import NSApp  # type: ignore
-                    
+
                     # Let's try applying to all windows that match the overlay dimensions or just apply to the last created one
                     for window in NSApp.windows():
 
                         # Heuristic: The main window has title "Aim Controls"
                         if window.title() != "Aim Controls":
                              window.setIgnoresMouseEvents_(True)
-                             
+
                 except Exception as e:
                     print(f"Could not enable click-through: {e}")
                     print("Note: Install PyObjC with: pip install pyobjc-framework-Cocoa")
         else:
-            
+
             # Platform-specific: Disable click-through on macOS
             if sys.platform == 'darwin':
                 try:
-                    
+
                     from Cocoa import NSApp  # type: ignore
-                    
+
                     for window in NSApp.windows():
                         # Re-enable events for all windows (safe for control window too as it defaults to False)
                         # or just target the transparent ones
                         window.setIgnoresMouseEvents_(False)
-                        
+
                 except Exception as e:
                     print(f"Could not disable click-through: {e}")
-    
+
     def update_click_through_ui(self):
         """Update UI elements to reflect current click-through state"""
         if self.click_through_enabled:
@@ -438,6 +449,57 @@ class GunboundAimAssistant:
         else:
             self.click_through_button.config(text="Enable Click-Through")
             self.click_through_status_label.config(text="✗ Click-Through: Disabled", fg="#4a5568")
+
+    def on_adjust_key_press(self, event=None):
+        """Handle adjust key press - temporarily disable click-through for marker editing"""
+        # Ignore key repeat events (when key is held down)
+        if self.adjust_key_held:
+            return
+
+        self.adjust_key_held = True
+
+        if self.click_through_enabled:
+            # Remember that click-through was enabled
+            self.click_through_before_space = True
+            # Temporarily disable click-through
+            self.click_through_enabled = False
+            self.update_click_through_ui()
+
+            # Platform-specific: Disable click-through on macOS
+            if sys.platform == 'darwin':
+                try:
+                    from Cocoa import NSApp  # type: ignore
+
+                    for window in NSApp.windows():
+                        # Re-enable events for overlay window
+                        if window.title() != "Aim Controls":
+                            window.setIgnoresMouseEvents_(False)
+
+                except Exception as e:
+                    print(f"Could not disable click-through: {e}")
+
+    def on_adjust_key_release(self, event=None):
+        """Handle adjust key release - restore click-through if it was enabled"""
+        self.adjust_key_held = False
+
+        if self.click_through_before_space:
+            # Restore click-through mode
+            self.click_through_before_space = False
+            self.click_through_enabled = True
+            self.update_click_through_ui()
+
+            # Platform-specific: Enable click-through on macOS
+            if sys.platform == 'darwin':
+                try:
+                    from Cocoa import NSApp  # type: ignore
+
+                    for window in NSApp.windows():
+                        # Disable events for overlay window
+                        if window.title() != "Aim Controls":
+                            window.setIgnoresMouseEvents_(True)
+
+                except Exception as e:
+                    print(f"Could not enable click-through: {e}")
 
     def get_shot_direction(self):
         """Return horizontal direction based on target position."""
@@ -470,7 +532,7 @@ class GunboundAimAssistant:
 
         # Get input parameters
         shot_angle = self.shot_angle.get()
-        
+
         # Use overrides if provided, otherwise use current settings
         power = override_power if override_power is not None else self.shot_power.get()
         wind_force = override_wind_force if override_wind_force is not None else self.wind_force.get()
@@ -529,13 +591,13 @@ class GunboundAimAssistant:
         """Update the canvas with all visual elements"""
         # Automatically calculate required power first
         self.solve_for_power()
-        
+
         self.canvas.delete("all")
 
         # Draw player pointer (green)
         px, py = self.player_pos
         self.canvas.create_oval(px-6, py-6, px+6, py+6, fill="#48bb78", outline="#2f855a", width=3)
-        
+
         # Draw enemy pointer (red)
         ex, ey = self.enemy_pos
         self.canvas.create_oval(ex-6, ey-6, ex+6, ey+6, fill="#f56565", outline="#c53030", width=3)
@@ -591,18 +653,18 @@ class GunboundAimAssistant:
         """
         ex, ey = self.enemy_pos
         px, py = self.player_pos  # Need these for distance calculation too
-        
+
         # Search parameters
         start_p = 0.0
         max_p = 400.0
         step_p = 1.0  # Resolution of power search
-        
+
         best_p = 0.0
         min_dist = float('inf')
-        
+
         # Tolerance for "hit" (in pixels) - allows missing a little bit
         HIT_TOLERANCE = 0.0
-        
+
         try:
             # Linear scan from 0 to max_p
             # We use a while loop to handle float steps easily
@@ -610,11 +672,11 @@ class GunboundAimAssistant:
             while current_p <= max_p:
                 # Simulate with this power
                 traj = self.calculate_trajectory(override_power=current_p)
-                
+
                 if not traj:
                     current_p += step_p
                     continue
-                
+
                 # Calculate minimum distance from this trajectory to the enemy
                 # We check every point in the trajectory to find the closest pass
                 current_traj_min_dist = float('inf')
@@ -622,14 +684,14 @@ class GunboundAimAssistant:
                     d_sq = (tx - ex)**2 + (ty - ey)**2
                     if d_sq < current_traj_min_dist:
                         current_traj_min_dist = d_sq
-                
+
                 current_dist = math.sqrt(current_traj_min_dist)
-                
+
                 # Check for "Hit"
                 if current_dist <= HIT_TOLERANCE:
                     best_p = current_p
                     break # Found a valid shot, stop searching
-                
+
                 # Check for Local Minimum (closest point)
                 if current_dist < min_dist:
                     # We are getting closer
@@ -639,12 +701,12 @@ class GunboundAimAssistant:
                     # We have passed the closest point and are moving away
                     # The previous point (best_p) was a local minimum
                     break
-                
+
                 current_p += step_p
-                    
+
             # Set the best power found
             self.shot_power.set(best_p)
-            
+
         except Exception as e:
             print(f"Error in auto-aim: {e}")
 
