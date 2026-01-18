@@ -197,8 +197,6 @@ class GunboundAimAssistant:
 
         # Click-through mode
         self.click_through_enabled = False
-        self.click_through_before_space = False  # Track state before Shift hold
-        self.adjust_key_held = False  # Track if Shift is currently being held down
 
         # Setup UI
         self.setup_control_panel()
@@ -206,17 +204,9 @@ class GunboundAimAssistant:
 
         # Bind keyboard shortcuts to root so they work when controls are focused
         self.root.bind("<Command-t>", self.toggle_click_through)
-        self.root.bind("<KeyPress-Shift_L>", self.on_adjust_key_press)
-        self.root.bind("<KeyRelease-Shift_L>", self.on_adjust_key_release)
-        self.root.bind("<KeyPress-Shift_R>", self.on_adjust_key_press)
-        self.root.bind("<KeyRelease-Shift_R>", self.on_adjust_key_release)
 
         # Also bind to overlay in case it has focus
         self.overlay_window.bind("<Command-t>", self.toggle_click_through)
-        self.overlay_window.bind("<KeyPress-Shift_L>", self.on_adjust_key_press)
-        self.overlay_window.bind("<KeyRelease-Shift_L>", self.on_adjust_key_release)
-        self.overlay_window.bind("<KeyPress-Shift_R>", self.on_adjust_key_press)
-        self.overlay_window.bind("<KeyRelease-Shift_R>", self.on_adjust_key_release)
 
         # Initial draw
         self.update_visualization()
@@ -246,20 +236,44 @@ class GunboundAimAssistant:
         # Title
         ttk.Label(control_frame, text="Wind Settings", font=("Arial", 12, "bold")).pack(pady=5)
 
-        # Wind Force (1-12 scale, integer steps)
-        ttk.Label(control_frame, text="Wind Force (1-12):").pack(anchor=tk.W)
+        # Wind Force (1-12 scale, integer steps) - Button group
+        ttk.Label(control_frame, text="Wind Force (1-12):").pack(anchor=tk.W, pady=(0, 5))
         self.wind_force = tk.DoubleVar(value=5.0)
-        ttk.Scale(control_frame, from_=1, to=12, variable=self.wind_force,
-                orient=tk.HORIZONTAL, command=self.on_wind_force_change).pack(fill=tk.X, pady=5)
-        self.wind_force_label = ttk.Label(control_frame, text="5")
-        self.wind_force_label.pack(anchor=tk.E)
+
+        # Create button frame with grid layout (3 rows x 4 columns)
+        wind_button_frame = ttk.Frame(control_frame)
+        wind_button_frame.pack(fill=tk.X, pady=0)
+
+        # Store button references for highlighting selected button
+        self.wind_force_buttons = {}
+
+        # Create buttons for each wind level (1-12)
+        for i in range(1, 13):
+            row = (i - 1) // 4
+            col = (i - 1) % 4
+
+            btn = tk.Button(
+                wind_button_frame,
+                text=str(i),
+                command=lambda level=i: self.set_wind_force(level),
+                highlightthickness=1,
+                pady=2
+            )
+            btn.grid(row=row, column=col, sticky="ew")
+            self.wind_force_buttons[i] = btn
+
+            # Configure grid weights for even spacing
+            wind_button_frame.grid_columnconfigure(col, weight=1)
+
+        # Highlight initial selected button (5)
+        self.update_wind_force_button_highlight(5)
 
         # Wind Angle with Circular Knob
         ttk.Label(control_frame, text="Wind Direction:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(15, 5))
 
         # Create circular knob
         knob_frame = ttk.Frame(control_frame)
-        knob_frame.pack(pady=5)
+        knob_frame.pack(pady=2)
 
         self.wind_angle_knob = CircularKnob(
             knob_frame,
@@ -290,7 +304,6 @@ class GunboundAimAssistant:
 
         # Instructions for click-through shortcuts
         ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=2)
-        ttk.Label(control_frame, text="Shift (Hold): Edit Markers", font=("Arial", 9)).pack(anchor=tk.W, pady=2)
 
         # Explicit button for toggling
         self.click_through_button = ttk.Button(control_frame, text="Enable Click-Through", command=self.toggle_click_through)
@@ -341,11 +354,36 @@ class GunboundAimAssistant:
         self.wind_angle.set(angle)
         self.on_param_change()
 
+    def set_wind_force(self, level):
+        """Set wind force from button click"""
+        self.wind_force.set(float(level))
+        self.update_wind_force_button_highlight(level)
+        self.on_param_change()
+
+    def update_wind_force_button_highlight(self, selected_level):
+        """Update button appearance to highlight selected wind force level"""
+        for level, button in self.wind_force_buttons.items():
+            if level == selected_level:
+                # Highlight selected button with bright blue background and border
+                button.configure(
+                    foreground="#b91c1c",
+                    highlightthickness=1,
+                    highlightbackground="#b91c1c",
+                )
+            else:
+                # Reset to default appearance
+                button.configure(
+                    foreground="#4a5568",
+                    highlightthickness=1,
+                    highlightbackground="systemTransparent",
+                )
+
     def on_wind_force_change(self, value):
-        """Handle wind force slider change and round to integer"""
+        """Handle wind force change (for programmatic updates)"""
         # Round to nearest integer
         rounded_value = round(float(value))
         self.wind_force.set(rounded_value)
+        self.update_wind_force_button_highlight(int(rounded_value))
         self.on_param_change()
 
     def on_shot_angle_change(self, value):
@@ -364,8 +402,11 @@ class GunboundAimAssistant:
     def on_param_change(self, event=None):
         """Update labels and live trajectory when parameters change"""
         # Update labels with integer values
-        self.wind_force_label.config(text=f"{int(self.wind_force.get())}")
+        current_wind_force = int(self.wind_force.get())
         self.shot_angle_label.config(text=f"{self.shot_angle.get():.1f}°")
+
+        # Update button highlight to match current wind force
+        self.update_wind_force_button_highlight(current_wind_force)
 
         # Live update trajectory
         self.update_visualization()
@@ -449,57 +490,6 @@ class GunboundAimAssistant:
         else:
             self.click_through_button.config(text="Enable Click-Through")
             self.click_through_status_label.config(text="✗ Click-Through: Disabled", fg="#4a5568")
-
-    def on_adjust_key_press(self, event=None):
-        """Handle adjust key press - temporarily disable click-through for marker editing"""
-        # Ignore key repeat events (when key is held down)
-        if self.adjust_key_held:
-            return
-
-        self.adjust_key_held = True
-
-        if self.click_through_enabled:
-            # Remember that click-through was enabled
-            self.click_through_before_space = True
-            # Temporarily disable click-through
-            self.click_through_enabled = False
-            self.update_click_through_ui()
-
-            # Platform-specific: Disable click-through on macOS
-            if sys.platform == 'darwin':
-                try:
-                    from Cocoa import NSApp  # type: ignore
-
-                    for window in NSApp.windows():
-                        # Re-enable events for overlay window
-                        if window.title() != "Aim Controls":
-                            window.setIgnoresMouseEvents_(False)
-
-                except Exception as e:
-                    print(f"Could not disable click-through: {e}")
-
-    def on_adjust_key_release(self, event=None):
-        """Handle adjust key release - restore click-through if it was enabled"""
-        self.adjust_key_held = False
-
-        if self.click_through_before_space:
-            # Restore click-through mode
-            self.click_through_before_space = False
-            self.click_through_enabled = True
-            self.update_click_through_ui()
-
-            # Platform-specific: Enable click-through on macOS
-            if sys.platform == 'darwin':
-                try:
-                    from Cocoa import NSApp  # type: ignore
-
-                    for window in NSApp.windows():
-                        # Disable events for overlay window
-                        if window.title() != "Aim Controls":
-                            window.setIgnoresMouseEvents_(True)
-
-                except Exception as e:
-                    print(f"Could not enable click-through: {e}")
 
     def get_shot_direction(self):
         """Return horizontal direction based on target position."""
