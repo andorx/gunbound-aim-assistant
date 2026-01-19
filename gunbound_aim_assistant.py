@@ -716,8 +716,8 @@ class GunboundAimAssistant:
         wind_angle = self.wind_angle.get()
 
         # Position in center of overlay window
-        center_x, center_y = 525, 75
-        arrow_length = 30
+        center_x, center_y = 525, 72
+        arrow_length = 25
 
         # Calculate arrow end point
         angle_rad = math.radians(wind_angle)
@@ -725,7 +725,7 @@ class GunboundAimAssistant:
         end_y = center_y - arrow_length * math.sin(angle_rad)  # Invert Y for canvas
 
         # Draw arrow circle background
-        self.canvas.create_oval(center_x-40, center_y-40, center_x+40, center_y+40,
+        self.canvas.create_oval(center_x-35, center_y-35, center_x+35, center_y+35,
                                outline="#ef4444", width=2)
 
         # Draw arrow line
