@@ -370,11 +370,12 @@ class GunboundAimAssistant:
         ttk.Label(control_frame, text="Overlay Controls", font=("Arial", 12, "bold")).pack(pady=5)
 
         # Instructions for click-through shortcuts
-        ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=2)
+        ttk.Label(control_frame, text="Cmd+T: Toggle Click-Through", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=0)
+        ttk.Label(control_frame, text="Hold Shift: Quick Adjust Markers", font=("Arial", 9, "bold")).pack(anchor=tk.W, pady=0)
 
         # Explicit button for toggling
         self.click_through_button = ttk.Button(control_frame, text="Enable Click-Through", command=self.toggle_click_through)
-        self.click_through_button.pack(fill=tk.X, pady=10)
+        self.click_through_button.pack(fill=tk.X, pady=4)
 
         # Status label for click-through mode
         self.click_through_status_label = tk.Label(control_frame, text="✗ Click-Through: Disabled",
@@ -573,6 +574,8 @@ class GunboundAimAssistant:
             self._shift_pressed = True
             # Disable click-through without updating UI (silent disable)
             self._set_click_through_state(False, update_ui=False)
+            # Update UI to show Shift-held state
+            self.update_click_through_ui()
         else:
             # Click-through wasn't enabled, so don't do anything
             self._click_through_state_before_shift = False
@@ -591,9 +594,16 @@ class GunboundAimAssistant:
         self._shift_pressed = False
         self._click_through_state_before_shift = False
 
+        # Update UI to reflect restored state
+        self.update_click_through_ui()
+
     def update_click_through_ui(self):
         """Update UI elements to reflect current click-through state"""
-        if self.click_through_enabled:
+        if self._shift_pressed and self._click_through_state_before_shift:
+            # Shift is being held, temporarily disabled
+            self.click_through_button.config(text="Disable Click-Through")
+            self.click_through_status_label.config(text="⇧ Shift Held: Temporarily Disabled", fg="#ecc94b")
+        elif self.click_through_enabled:
             self.click_through_button.config(text="Disable Click-Through")
             self.click_through_status_label.config(text="✓ Click-Through: Enabled", fg="#48bb78")
         else:
