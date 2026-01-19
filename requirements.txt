@@ -1,2 +1,3 @@
 pyobjc-framework-Cocoa>=12.1
 pyobjc-framework-Quartz>=12.1
+pynput>=1.7.6

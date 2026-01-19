@@ -8,6 +8,16 @@ import tkinter as tk
 from tkinter import ttk
 import math
 import sys
+import threading
+
+# Global hotkey support
+try:
+    from pynput import keyboard
+    PYNPUT_AVAILABLE = True
+except ImportError:
+    PYNPUT_AVAILABLE = False
+    print("Warning: pynput not installed. Global hotkey (Shift) will not work.")
+    print("Install with: pip install pynput")
 
 # macOS-specific imports for window detection
 if sys.platform == 'darwin':
@@ -198,6 +208,11 @@ class GunboundAimAssistant:
         # Click-through mode
         self.click_through_enabled = False
 
+        # State tracking for Shift key temporary disable
+        self._click_through_state_before_shift = False
+        self._shift_pressed = False
+        self._keyboard_listener = None
+
         # Setup UI
         self.setup_control_panel()
         self.setup_canvas()
@@ -207,6 +222,9 @@ class GunboundAimAssistant:
 
         # Also bind to overlay in case it has focus
         self.overlay_window.bind("<Command-t>", self.toggle_click_through)
+
+        # Setup global hotkey listener for Shift key
+        self._setup_global_hotkey()
 
         # Initial draw
         self.update_visualization()
@@ -224,8 +242,57 @@ class GunboundAimAssistant:
 
     def on_close(self):
         """Handle application closure"""
+        # Stop keyboard listener if it exists
+        if self._keyboard_listener is not None:
+            try:
+                self._keyboard_listener.stop()
+            except Exception:
+                pass
         self.root.destroy()
         sys.exit(0)
+
+    def _setup_global_hotkey(self):
+        """Setup global hotkey listener for Shift key"""
+        if not PYNPUT_AVAILABLE:
+            return
+
+        try:
+            def on_press(key):
+                """Handle key press events"""
+                try:
+                    # Check if Shift key (left or right)
+                    if key == keyboard.Key.shift or key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
+                        # Schedule UI update in main thread
+                        self.root.after(0, self._on_shift_press)
+                except AttributeError:
+                    # Not a special key, ignore
+                    pass
+
+            def on_release(key):
+                """Handle key release events"""
+                try:
+                    # Check if Shift key (left or right)
+                    if key == keyboard.Key.shift or key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
+                        # Schedule UI update in main thread
+                        self.root.after(0, self._on_shift_release)
+                except AttributeError:
+                    # Not a special key, ignore
+                    pass
+
+            # Create listener
+            self._keyboard_listener = keyboard.Listener(
+                on_press=on_press,
+                on_release=on_release,
+                suppress=False  # Don't suppress key events, let them pass through
+            )
+
+            # Start listener in daemon thread
+            self._keyboard_listener.start()
+
+        except Exception as e:
+            print(f"Warning: Could not setup global hotkey listener: {e}")
+            print("Global Shift key functionality will not be available.")
+            print("On macOS, you may need to grant Accessibility permissions in System Settings.")
 
     def setup_control_panel(self):
         """Create the control panel with input fields"""
@@ -439,12 +506,19 @@ class GunboundAimAssistant:
         # Ensure final update
         self.update_visualization()
 
-    def toggle_click_through(self, event=None):
-        """Toggle click-through mode to see through and interact with windows behind"""
-        self.click_through_enabled = not self.click_through_enabled
+    def _set_click_through_state(self, enabled, update_ui=True):
+        """
+        Set click-through state directly without toggling.
 
-        # Update UI
-        self.update_click_through_ui()
+        Args:
+            enabled: True to enable click-through, False to disable
+            update_ui: If True, update UI elements (default True)
+        """
+        self.click_through_enabled = enabled
+
+        if update_ui:
+            # Update UI
+            self.update_click_through_ui()
 
         if self.click_through_enabled:
             # Enable click-through mode
@@ -481,6 +555,41 @@ class GunboundAimAssistant:
 
                 except Exception as e:
                     print(f"Could not disable click-through: {e}")
+
+    def toggle_click_through(self, event=None):
+        """Toggle click-through mode to see through and interact with windows behind"""
+        self._set_click_through_state(not self.click_through_enabled, update_ui=True)
+
+    def _on_shift_press(self, key=None):
+        """Handle Shift key press - temporarily disable click-through if enabled"""
+        # Only handle if not already processing a shift press
+        if self._shift_pressed:
+            return
+
+        # Check if click-through is currently enabled
+        if self.click_through_enabled:
+            # Store the state before disabling
+            self._click_through_state_before_shift = True
+            self._shift_pressed = True
+            # Disable click-through without updating UI (silent disable)
+            self._set_click_through_state(False, update_ui=False)
+        else:
+            # Click-through wasn't enabled, so don't do anything
+            self._click_through_state_before_shift = False
+            self._shift_pressed = True
+
+    def _on_shift_release(self, key=None):
+        """Handle Shift key release - restore click-through if it was enabled before"""
+        if not self._shift_pressed:
+            return
+
+        # If click-through was enabled before shift was pressed, restore it
+        if self._click_through_state_before_shift:
+            self._set_click_through_state(True, update_ui=False)
+
+        # Reset state flags
+        self._shift_pressed = False
+        self._click_through_state_before_shift = False
 
     def update_click_through_ui(self):
         """Update UI elements to reflect current click-through state"""
