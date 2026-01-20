@@ -200,10 +200,23 @@ class GunboundAimAssistant:
         self.overlay_window.attributes("-topmost", True)
 
         # Canvas position tracking
-        self.dragging_player = False
-        self.dragging_enemy = False
-        self.player_pos = [200, 600]
-        self.enemy_pos = [850, 600]
+        # Support multiple (player, enemy) marker pairs
+        # Each pair is a dict: {"player": [x, y], "enemy": [x, y]}
+        self.marker_pairs = [
+            {
+                "player": [200, 600],
+                "enemy": [850, 600],
+            }
+        ]
+        # Index of the currently active pair
+        self.active_pair_index = 0
+
+        # Per-pair shot power storage (matches marker_pairs by index)
+        self.shot_power_by_pair = [0.0]
+
+        # Dragging state across pairs
+        self.dragging_pair_index = None
+        self.dragging_role = None  # "player" or "enemy"
 
         # Click-through mode
         self.click_through_enabled = False
@@ -366,6 +379,25 @@ class GunboundAimAssistant:
 
         ttk.Separator(control_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
+        # Marker pair controls
+        ttk.Label(control_frame, text="Marker Pairs", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(5, 2))
+
+        # Buttons for adding/removing pairs
+        buttons_frame = ttk.Frame(control_frame)
+        buttons_frame.pack(fill=tk.X, pady=(0, 5))
+
+        self.add_pair_button = ttk.Button(buttons_frame, text="Add Pair", command=self.add_pair)
+        self.add_pair_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
+
+        self.remove_pair_button = ttk.Button(buttons_frame, text="Remove Pair", command=self.remove_pair)
+        self.remove_pair_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(2, 0))
+
+        # Initial button state based on current pair count
+        if len(self.marker_pairs) >= 3:
+            self.add_pair_button.state(["disabled"])
+        if len(self.marker_pairs) <= 1:
+            self.remove_pair_button.state(["disabled"])
+
         # Transparency Settings
         ttk.Label(control_frame, text="Overlay Controls", font=("Arial", 12, "bold")).pack(pady=5)
 
@@ -482,27 +514,55 @@ class GunboundAimAssistant:
     def on_canvas_click(self, event):
         """Handle mouse click on canvas"""
         x, y = event.x, event.y
+        hit_radius = 20
 
-        # Check if clicking near player pointer
-        if abs(x - self.player_pos[0]) < 20 and abs(y - self.player_pos[1]) < 20:
-            self.dragging_player = True
-        # Check if clicking near enemy pointer
-        elif abs(x - self.enemy_pos[0]) < 20 and abs(y - self.enemy_pos[1]) < 20:
-            self.dragging_enemy = True
+        # Check all pairs for hit-testing
+        for idx, pair in enumerate(self.marker_pairs):
+            px, py = pair["player"]
+            ex, ey = pair["enemy"]
+
+            # Check if clicking near player pointer
+            if abs(x - px) < hit_radius and abs(y - py) < hit_radius:
+                self.dragging_pair_index = idx
+                self.dragging_role = "player"
+                # Make this pair active
+                self.active_pair_index = idx
+                # Sync shot power variable for active pair
+                if idx < len(self.shot_power_by_pair):
+                    self.shot_power.set(self.shot_power_by_pair[idx])
+                self.update_visualization()
+                return
+
+            # Check if clicking near enemy pointer
+            if abs(x - ex) < hit_radius and abs(y - ey) < hit_radius:
+                self.dragging_pair_index = idx
+                self.dragging_role = "enemy"
+                # Make this pair active
+                self.active_pair_index = idx
+                # Sync shot power variable for active pair
+                if idx < len(self.shot_power_by_pair):
+                    self.shot_power.set(self.shot_power_by_pair[idx])
+                self.update_visualization()
+                return
 
     def on_canvas_drag(self, event):
         """Handle mouse drag on canvas"""
-        if self.dragging_player:
-            self.player_pos = [event.x, event.y]
-            self.update_visualization()
-        elif self.dragging_enemy:
-            self.enemy_pos = [event.x, event.y]
-            self.update_visualization()
+        if self.dragging_pair_index is None or self.dragging_role is None:
+            return
+
+        # Update the dragged marker for the appropriate pair
+        try:
+            pair = self.marker_pairs[self.dragging_pair_index]
+        except IndexError:
+            return
+
+        pair[self.dragging_role] = [event.x, event.y]
+        self.update_visualization()
 
     def on_canvas_release(self, event):
         """Handle mouse release"""
-        self.dragging_player = False
-        self.dragging_enemy = False
+        self.dragging_pair_index = None
+        self.dragging_role = None
 
         # Ensure final update
         self.update_visualization()
@@ -611,11 +671,12 @@ class GunboundAimAssistant:
             self.click_through_status_label.config(text="✗ Click-Through: Disabled", fg="#4a5568")
 
     def get_shot_direction(self):
-        """Return horizontal direction based on target position."""
-        return 1 if self.enemy_pos[0] >= self.player_pos[0] else -1
+        """Return horizontal direction based on target position for the active pair."""
+        pair = self.marker_pairs[self.active_pair_index]
+        return 1 if pair["enemy"][0] >= pair["player"][0] else -1
 
     def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None, override_power=None,
-                             override_direction=None):
+                             override_direction=None, pair_index=None):
         """
         Calculate projectile trajectory with wind effect using Euler integration.
         Matches the physics model from claude.py for accurate trajectory prediction.
@@ -637,16 +698,35 @@ class GunboundAimAssistant:
         - Wind acceleration scaled by 0.8 for Gunbound-style physics
         """
         trajectory = []
-        start_x, start_y = self.player_pos
+
+        # Determine which pair to use
+        if pair_index is None:
+            pair_index = self.active_pair_index
+        pair = self.marker_pairs[pair_index]
+        start_x, start_y = pair["player"]
 
         # Get input parameters
         shot_angle = self.shot_angle.get()
 
         # Use overrides if provided, otherwise use current settings
-        power = override_power if override_power is not None else self.shot_power.get()
+        if override_power is not None:
+            power = override_power
+        else:
+            # Use per-pair stored power
+            if pair_index < len(self.shot_power_by_pair):
+                power = self.shot_power_by_pair[pair_index]
+            else:
+                power = 0.0
+
         wind_force = override_wind_force if override_wind_force is not None else self.wind_force.get()
         wind_angle = override_wind_angle if override_wind_angle is not None else self.wind_angle.get()
-        direction = override_direction if override_direction is not None else self.get_shot_direction()
+
+        if override_direction is not None:
+            direction = override_direction
+        else:
+            # Direction based on this pair
+            local_pair = self.marker_pairs[pair_index]
+            direction = 1 if local_pair["enemy"][0] >= local_pair["player"][0] else -1
 
         # Physics Constants (matching claude.py)
         GRAVITY = 9.8  # m/s²
@@ -697,71 +777,172 @@ class GunboundAimAssistant:
         return trajectory
 
     def update_visualization(self):
-        """Update the canvas with all visual elements"""
-        # Automatically calculate required power first
-        self.solve_for_power()
-
+        """Update the canvas with all visual elements for all marker pairs"""
         self.canvas.delete("all")
 
-        # Draw player pointer (green)
-        px, py = self.player_pos
-        self.canvas.create_oval(px-6, py-6, px+6, py+6, fill="#48bb78", outline="#2f855a", width=3)
+        num_pairs = len(self.marker_pairs)
+        if num_pairs == 0:
+            return
 
-        # Draw enemy pointer (red)
-        ex, ey = self.enemy_pos
-        self.canvas.create_oval(ex-6, ey-6, ex+6, ey+6, fill="#f56565", outline="#c53030", width=3)
+        # Ensure shot power list is at least as long as marker_pairs
+        if len(self.shot_power_by_pair) < num_pairs:
+            self.shot_power_by_pair.extend([0.0] * (num_pairs - len(self.shot_power_by_pair)))
 
-        # Draw zero-wind trajectory (baseline) using the CALCULATED power
-        # This shows "where would this shot land if there was 0 wind?"
-        zero_wind_trajectory = self.calculate_trajectory(override_wind_force=0)
-        if len(zero_wind_trajectory) > 1:
-            # Draw trajectory line in red
-            for i in range(len(zero_wind_trajectory) - 1):
-                x1, y1 = zero_wind_trajectory[i]
-                x2, y2 = zero_wind_trajectory[i + 1]
-                self.canvas.create_line(x1, y1, x2, y2, fill="#fc8181", width=2, dash=(6, 4))
+        # Recalculate power for each pair
+        for idx in range(num_pairs):
+            self.solve_for_power(pair_index=idx)
 
-            # Draw predicted landing point for zero wind
-            last_x, last_y = zero_wind_trajectory[-1]
-            self.canvas.create_oval(last_x-6, last_y-6, last_x+6, last_y+6,
-                                   outline="#fc8181", width=1, dash=(6, 4))
+        # Color palettes for up to three pairs
+        marker_player_colors = ["#48bb78", "#63b3ed", "#d6bcfa"]
+        marker_enemy_colors = ["#f56565", "#f6ad55", "#fbd38d"]
+        zero_wind_colors = ["#fc8181", "#facc15", "#f472b6"]
+        base_start_colors = ["#22c55e", "#3b82f6", "#a855f7"]
+        base_end_colors = ["#2563eb", "#10b981", "#f97316"]
+        landing_outline_colors = ["#ecc94b", "#f97316", "#8481f9"]
 
-        # Draw trajectory (this uses the calculated power from solve_for_power)
-        trajectory = self.calculate_trajectory()
-        if len(trajectory) > 1:
-            # Draw trajectory line
-            for i in range(len(trajectory) - 1):
-                x1, y1 = trajectory[i]
-                x2, y2 = trajectory[i + 1]
-                # Color gradient from green to yellow based on position
-                progress = i / len(trajectory)
-                color = self.interpolate_color("#22c55e", "#2563eb", progress)
-                self.canvas.create_line(x1, y1, x2, y2, fill=color, width=1)
+        # Draw each pair
+        for idx, pair in enumerate(self.marker_pairs):
+            px, py = pair["player"]
+            ex, ey = pair["enemy"]
+            is_active = (idx == self.active_pair_index)
 
-            # Draw predicted landing point
-            last_x, last_y = trajectory[-1]
-            self.canvas.create_oval(last_x-8, last_y-8, last_x+8, last_y+8,
-                                    outline="#ecc94b", width=2)
+            player_color = marker_player_colors[idx % len(marker_player_colors)]
+            enemy_color = marker_enemy_colors[idx % len(marker_enemy_colors)]
+            zero_color = zero_wind_colors[idx % len(zero_wind_colors)]
+            base_start = base_start_colors[idx % len(base_start_colors)]
+            base_end = base_end_colors[idx % len(base_end_colors)]
+            landing_color = landing_outline_colors[idx % len(landing_outline_colors)]
 
-        # Calculate and display distance
-        ex, ey = self.enemy_pos
-        px, py = self.player_pos
-        distance = math.sqrt((ex - px)**2 + (ey - py)**2)
-        self.canvas.create_text((px + ex) / 2, (py + ey) / 2 - 20,
-                               text=f"Distance: {distance:.1f}px",
-                               fill="#cbd5e0", font=("Arial", 9))
+            # Marker size and line width based on active state
+            marker_radius = 7 if is_active else 5
+            trajectory_width = 2 if is_active else 1
 
-        # Draw wind indicator
+            # Draw player pointer
+            self.canvas.create_oval(
+                px - marker_radius,
+                py - marker_radius,
+                px + marker_radius,
+                py + marker_radius,
+                fill=player_color,
+                outline="#2f855a",
+                width=3 if is_active else 2,
+            )
+
+            # Draw enemy pointer
+            self.canvas.create_oval(
+                ex - marker_radius,
+                ey - marker_radius,
+                ex + marker_radius,
+                ey + marker_radius,
+                fill=enemy_color,
+                outline="#c53030",
+                width=3 if is_active else 2,
+            )
+
+            # Zero-wind trajectory (baseline) using the calculated power
+            zero_wind_trajectory = self.calculate_trajectory(
+                override_wind_force=0, pair_index=idx
+            )
+            if len(zero_wind_trajectory) > 1:
+                for i in range(len(zero_wind_trajectory) - 1):
+                    x1, y1 = zero_wind_trajectory[i]
+                    x2, y2 = zero_wind_trajectory[i + 1]
+                    self.canvas.create_line(
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        fill=zero_color,
+                        width=trajectory_width,
+                        dash=(6, 4),
+                    )
+
+                # Predicted landing point for zero wind
+                last_x, last_y = zero_wind_trajectory[-1]
+                self.canvas.create_oval(
+                    last_x - 6,
+                    last_y - 6,
+                    last_x + 6,
+                    last_y + 6,
+                    outline=zero_color,
+                    width=1,
+                    dash=(6, 4),
+                )
+
+                # Label for zero-wind landing
+                self.canvas.create_text(
+                    last_x,
+                    last_y - 12,
+                    text=f"P{idx + 1} (0)",
+                    fill=zero_color,
+                    font=("Arial", 8, "bold"),
+                )
+
+            # Trajectory with current wind (uses per-pair power)
+            trajectory = self.calculate_trajectory(pair_index=idx)
+            if len(trajectory) > 1:
+                for i in range(len(trajectory) - 1):
+                    x1, y1 = trajectory[i]
+                    x2, y2 = trajectory[i + 1]
+                    progress = i / len(trajectory)
+                    color = self.interpolate_color(base_start, base_end, progress)
+                    self.canvas.create_line(
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        fill=color,
+                        width=trajectory_width,
+                    )
+
+                # Predicted landing point with wind
+                last_x, last_y = trajectory[-1]
+                self.canvas.create_oval(
+                    last_x - 8,
+                    last_y - 8,
+                    last_x + 8,
+                    last_y + 8,
+                    outline=landing_color,
+                    width=2 if is_active else 1,
+                )
+
+                # Label for landing point
+                self.canvas.create_text(
+                    last_x,
+                    last_y + 12,
+                    text=f"P{idx + 1}",
+                    fill=landing_color,
+                    font=("Arial", 8, "bold"),
+                )
+
+            # Distance between player and enemy for this pair
+            distance = math.sqrt((ex - px) ** 2 + (ey - py) ** 2)
+            # Offset distance labels vertically so they don't completely overlap
+            label_offset = 20 + idx * 14
+            self.canvas.create_text(
+                (px + ex) / 2,
+                (py + ey) / 2 - label_offset,
+                text=f"P{idx + 1} Dist: {distance:.1f}px",
+                fill="#cbd5e0",
+                font=("Arial", 9),
+            )
+
+        # Draw shared wind indicator once
         self.draw_wind_indicator()
 
-    def solve_for_power(self):
+    def solve_for_power(self, pair_index=None):
         """
         Linearly increase power to find the best shot.
         Stops when trajectory hits the target or starts moving away (local minimum).
         Updates self.shot_power.
         """
-        ex, ey = self.enemy_pos
-        px, py = self.player_pos  # Need these for distance calculation too
+        # Determine which pair to use
+        if pair_index is None:
+            pair_index = self.active_pair_index
+
+        pair = self.marker_pairs[pair_index]
+        ex, ey = pair["enemy"]
+        px, py = pair["player"]  # Need these for distance calculation too
 
         # Search parameters
         start_p = 0.0
@@ -779,8 +960,8 @@ class GunboundAimAssistant:
             # We use a while loop to handle float steps easily
             current_p = start_p
             while current_p <= max_p:
-                # Simulate with this power
-                traj = self.calculate_trajectory(override_power=current_p)
+                # Simulate with this power for this pair
+                traj = self.calculate_trajectory(override_power=current_p, pair_index=pair_index)
 
                 if not traj:
                     current_p += step_p
@@ -813,20 +994,21 @@ class GunboundAimAssistant:
 
                 current_p += step_p
 
-            # Set the best power found
-            self.shot_power.set(best_p)
+            # Ensure storage list is large enough
+            if pair_index >= len(self.shot_power_by_pair):
+                self.shot_power_by_pair.extend(
+                    [0.0] * (pair_index + 1 - len(self.shot_power_by_pair))
+                )
+
+            # Store the best power for this pair
+            self.shot_power_by_pair[pair_index] = best_p
+
+            # Keep DoubleVar in sync for active pair
+            if pair_index == self.active_pair_index:
+                self.shot_power.set(best_p)
 
         except Exception as e:
             print(f"Error in auto-aim: {e}")
-
-        # Calculate and display distance
-        distance = math.sqrt((ex - px)**2 + (ey - py)**2)
-        self.canvas.create_text((px + ex) / 2, (py + ey) / 2 - 20,
-                               text=f"Distance: {distance:.1f}px",
-                               fill="#cbd5e0", font=("Arial", 9))
-
-        # Draw wind indicator
-        self.draw_wind_indicator()
 
 
     def draw_wind_indicator(self):
@@ -867,6 +1049,73 @@ class GunboundAimAssistant:
         b = int(b1 + (b2 - b1) * t)
 
         return f"#{r:02x}{g:02x}{b:02x}"
+
+    def add_pair(self):
+        """Add a new marker pair, up to a maximum of three."""
+        if len(self.marker_pairs) >= 3:
+            return
+
+        # Clone the current active pair or use defaults
+        base_pair = self.marker_pairs[self.active_pair_index]
+        new_pair = {
+            "player": base_pair["player"][:],
+            "enemy": base_pair["enemy"][:],
+        }
+        self.marker_pairs.append(new_pair)
+
+        # Clone shot power for the new pair if available
+        base_power = 0.0
+        if self.active_pair_index < len(self.shot_power_by_pair):
+            base_power = self.shot_power_by_pair[self.active_pair_index]
+        self.shot_power_by_pair.append(base_power)
+
+        # Make the new pair active
+        self.active_pair_index = len(self.marker_pairs) - 1
+        self.shot_power.set(base_power)
+
+        # Update button states
+        if len(self.marker_pairs) >= 3:
+            self.add_pair_button.state(["disabled"])
+        if len(self.marker_pairs) > 1:
+            self.remove_pair_button.state(["!disabled"])
+
+        self.update_visualization()
+
+    def remove_pair(self):
+        """Remove the currently active marker pair, keeping at least one."""
+        if len(self.marker_pairs) <= 1:
+            return
+
+        idx = self.active_pair_index
+
+        # Remove the pair and its shot power if present
+        if 0 <= idx < len(self.marker_pairs):
+            del self.marker_pairs[idx]
+        if 0 <= idx < len(self.shot_power_by_pair):
+            del self.shot_power_by_pair[idx]
+
+        # Adjust active index
+        if idx >= len(self.marker_pairs):
+            idx = len(self.marker_pairs) - 1
+        self.active_pair_index = idx
+
+        # Ensure shot_power_by_pair has at least as many entries as marker_pairs
+        while len(self.shot_power_by_pair) < len(self.marker_pairs):
+            self.shot_power_by_pair.append(0.0)
+
+        # Sync DoubleVar for active pair
+        if self.active_pair_index < len(self.shot_power_by_pair):
+            self.shot_power.set(self.shot_power_by_pair[self.active_pair_index])
+
+        # Update button states
+        if len(self.marker_pairs) < 3:
+            self.add_pair_button.state(["!disabled"])
+        if len(self.marker_pairs) <= 1:
+            self.remove_pair_button.state(["disabled"])
+        else:
+            self.remove_pair_button.state(["!disabled"])
+
+        self.update_visualization()
 
     def find_window_by_title(self, target_title):
         """
