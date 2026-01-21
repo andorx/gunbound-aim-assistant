@@ -232,7 +232,7 @@ class TrajectoryView: NSView {
         // Calculate arrow end point
         let radians = windSettings.angle * .pi / 180.0
         let endX = center.x + arrowLength * cos(radians)
-        let endY = center.y + arrowLength * sin(radians)
+        let endY = center.y - arrowLength * sin(radians)  // Negate Y for flipped coordinates
         
         let color = NSColor(red: 0.937, green: 0.267, blue: 0.267, alpha: 1.0)
         

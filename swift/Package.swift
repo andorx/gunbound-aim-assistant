@@ -29,6 +29,9 @@ let package = Package(
                 "Windows/OverlayWindow.swift",
                 "App/AppDelegate.swift",
                 "App/main.swift"
+            ],
+            resources: [
+                .process("../Assets.xcassets")
             ]
         )
     ]
