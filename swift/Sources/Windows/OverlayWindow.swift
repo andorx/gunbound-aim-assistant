@@ -20,13 +20,14 @@ class OverlayWindow: NSWindow {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 1050, height: 850),
             styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
+            backing: .retained,  // Use retained backing to prevent ghost artifacts
             defer: false
         )
         
         self.title = "Gunbound Overlay"
         self.isReleasedWhenClosed = false
         self.level = .floating
+        self.hasShadow = false
         
         // Configure transparency
         self.isOpaque = false

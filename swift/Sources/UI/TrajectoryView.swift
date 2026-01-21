@@ -7,27 +7,47 @@ class TrajectoryView: NSView {
     
     /// Marker pairs to display
     var markerPairs: [MarkerPair] = [.default] {
-        didSet { needsDisplay = true }
+        didSet { 
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
     }
     
     /// Index of the currently active pair
     var activePairIndex: Int = 0 {
-        didSet { needsDisplay = true }
+        didSet { 
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
     }
     
     /// Wind settings for trajectory calculations
     var windSettings: WindSettings = .default {
-        didSet { needsDisplay = true }
+        didSet { 
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
     }
     
     /// Trajectory results (one per marker pair)
     var trajectories: [TrajectoryResult] = [] {
-        didSet { needsDisplay = true }
+        didSet { 
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
     }
     
     /// Zero-wind trajectories for baseline comparison
     var zeroWindTrajectories: [TrajectoryResult] = [] {
-        didSet { needsDisplay = true }
+        didSet { 
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
     }
     
     /// Callback when a marker is dragged
@@ -59,8 +79,7 @@ class TrajectoryView: NSView {
     }
     
     private func setupView() {
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        wantsLayer = false  // Don't use layer-backed rendering
     }
     
     // Use flipped coordinates (top-left origin) to match Python version
