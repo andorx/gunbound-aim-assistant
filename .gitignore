@@ -11,3 +11,5 @@
 /*.pyz
 /*.pywz
 /*.pyz
+.build
+.swiftpm
