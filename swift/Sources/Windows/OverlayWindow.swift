@@ -26,7 +26,7 @@ class OverlayWindow: NSWindow {
         
         self.title = "Gunbound Overlay"
         self.isReleasedWhenClosed = false
-        self.level = .floating
+        self.level = .statusBar
         self.hasShadow = false
         
         // Configure transparency

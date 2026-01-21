@@ -105,7 +105,7 @@ class TrajectoryView: NSView {
                     context: context,
                     trajectory: zeroWindTrajectories[index],
                     color: colors.zeroWind,
-                    lineWidth: isActive ? 2 : 1,
+                    lineWidth: 1,
                     dashed: true
                 )
             }
@@ -117,7 +117,7 @@ class TrajectoryView: NSView {
                     trajectory: trajectories[index],
                     startColor: colors.trajectoryStart,
                     endColor: colors.trajectoryEnd,
-                    lineWidth: isActive ? 2 : 1
+                    lineWidth: 1
                 )
             }
             
@@ -157,7 +157,7 @@ class TrajectoryView: NSView {
         context.setLineWidth(lineWidth)
         
         if dashed {
-            context.setLineDash(phase: 0, lengths: [6, 4])
+            context.setLineDash(phase: 0, lengths: [2, 4])
         }
         
         context.beginPath()
@@ -306,7 +306,12 @@ class TrajectoryView: NSView {
     
     override func mouseDown(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        let hitRadius: CGFloat = 20
+        let hitRadius: CGFloat = 28
+      
+        // If Shift is not held, make the window key to allow immediate interaction
+        if !event.modifierFlags.contains(.shift) {
+            window?.makeKeyAndOrderFront(nil)
+        }
         
         // Check all pairs for hit-testing
         for (index, pair) in markerPairs.enumerated() {

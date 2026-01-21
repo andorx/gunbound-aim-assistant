@@ -80,7 +80,7 @@ EOF
 # Create app icon from Assets.xcassets
 if [ -d "Assets.xcassets/AppIcon.appiconset" ]; then
 	echo "🎨 Creating app icon..."
-	
+
 	# Use pre-generated .icns if it exists in project root
 	if [ -f "AppIcon.icns" ]; then
 		cp "AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
@@ -89,7 +89,7 @@ if [ -d "Assets.xcassets/AppIcon.appiconset" ]; then
 		# Generate .icns from PNG files using sips and iconutil
 		TEMP_ICONSET="${RESOURCES_DIR}/AppIcon.iconset"
 		mkdir -p "${TEMP_ICONSET}"
-		
+
 		# Generate all required icon sizes from the largest PNG
 		LARGEST_ICON="Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png"
 		if [ -f "${LARGEST_ICON}" ]; then
@@ -97,13 +97,7 @@ if [ -d "Assets.xcassets/AppIcon.appiconset" ]; then
 			sips -z 32 32 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_16x16@2x.png" >/dev/null 2>&1
 			sips -z 32 32 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_32x32.png" >/dev/null 2>&1
 			sips -z 64 64 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_32x32@2x.png" >/dev/null 2>&1
-			sips -z 128 128 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_128x128.png" >/dev/null 2>&1
-			sips -z 256 256 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_128x128@2x.png" >/dev/null 2>&1
-			sips -z 256 256 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_256x256.png" >/dev/null 2>&1
-			sips -z 512 512 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_256x256@2x.png" >/dev/null 2>&1
-			sips -z 512 512 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_512x512.png" >/dev/null 2>&1
-			sips -z 1024 1024 "${LARGEST_ICON}" --out "${TEMP_ICONSET}/icon_512x512@2x.png" >/dev/null 2>&1
-			
+
 			# Convert iconset to icns
 			if iconutil -c icns "${TEMP_ICONSET}" -o "${RESOURCES_DIR}/AppIcon.icns" 2>/dev/null; then
 				echo "✅ App icon created successfully"
