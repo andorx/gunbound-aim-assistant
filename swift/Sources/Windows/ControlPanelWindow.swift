@@ -60,7 +60,7 @@ class ControlPanelWindow: NSWindow {
         
         // Initialize window
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 660),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 670),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -94,19 +94,32 @@ class ControlPanelWindow: NSWindow {
         let windForceLabel = NSTextField(labelWithString: "Wind Force (1-12):")
         windForceLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
         contentView.addSubview(windForceLabel)
-        yOffset -= 25
+        yOffset -= 30
         
-        // Wind Force Buttons (3 rows x 4 columns)
+        // Wind Force Buttons Grid (4 rows x 3 columns for better layout)
+        let gridConfig = (
+            columns: 4,
+            rows: 3,
+            buttonWidth: 70.0,
+            buttonHeight: 32.0,
+            horizontalSpacing: 0.0,
+            verticalSpacing: 0.0,
+            leftMargin: 10.0
+        )
+        
         for (index, button) in windForceButtons.enumerated() {
-            let row = index / 4
-            let col = index % 4
-            let x: CGFloat = 10 + CGFloat(col) * 70
-            let y: CGFloat = yOffset - CGFloat(row) * 30
+            let row = index / gridConfig.columns
+            let col = index % gridConfig.columns
             
-            button.frame = NSRect(x: x, y: y, width: 65, height: 25)
+            let x = gridConfig.leftMargin + CGFloat(col) * (gridConfig.buttonWidth + gridConfig.horizontalSpacing)
+            let y = yOffset - CGFloat(row) * (gridConfig.buttonHeight + gridConfig.verticalSpacing)
+            
+            button.frame = NSRect(x: x, y: y, width: gridConfig.buttonWidth, height: gridConfig.buttonHeight)
+            button.bezelStyle = .rounded
+            button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
             contentView.addSubview(button)
         }
-        yOffset -= 100
+        yOffset -= CGFloat(gridConfig.rows) * (gridConfig.buttonHeight + gridConfig.verticalSpacing) + 10
         
         // Wind Direction Label
         let windDirLabel = NSTextField(labelWithString: "Wind Direction:")
@@ -329,10 +342,26 @@ class ControlPanelWindow: NSWindow {
     private func updateWindForceButtons() {
         for (index, button) in windForceButtons.enumerated() {
             let level = index + 1
+            
             if level == currentWindForce {
-                button.contentTintColor = NSColor(red: 0.725, green: 0.110, blue: 0.110, alpha: 1.0)
+                // Selected button - vibrant red/orange with bold text
+                button.contentTintColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 1.0) // Bright red
+                button.bezelColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 0.2)
+                
+                // Make the text bold and slightly larger
+                button.font = NSFont.boldSystemFont(ofSize: 14)
+                
+                // Add a subtle shadow effect for depth
+                button.shadow = NSShadow()
+                button.shadow?.shadowColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 0.4)
+                button.shadow?.shadowOffset = NSSize(width: 0, height: -1)
+                button.shadow?.shadowBlurRadius = 3
             } else {
-                button.contentTintColor = NSColor(red: 0.290, green: 0.333, blue: 0.408, alpha: 1.0)
+                // Unselected buttons - neutral gray
+                button.contentTintColor = NSColor(red: 0.45, green: 0.50, blue: 0.55, alpha: 1.0)
+                button.bezelColor = nil
+                button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+                button.shadow = nil
             }
         }
     }
@@ -371,15 +400,37 @@ struct ControlPanelWindow_Previews: PreviewProvider {
         Group {
             // Default state preview
             ControlPanelWindowPreview()
-                .frame(width: 300, height: 660)
+                .frame(width: 300, height: 670)
                 .previewDisplayName("Control Panel - Default")
             
             // Dark mode preview
             ControlPanelWindowPreview()
-                .frame(width: 300, height: 660)
+                .frame(width: 300, height: 670)
                 .preferredColorScheme(.dark)
                 .previewDisplayName("Control Panel - Dark Mode")
+            
+            // Different wind force selected
+            ControlPanelWindowPreviewCustom(windForce: 12)
+                .frame(width: 300, height: 670)
+                .previewDisplayName("Control Panel - Max Wind")
         }
     }
+}
+
+/// Custom preview with configurable wind force
+struct ControlPanelWindowPreviewCustom: NSViewRepresentable {
+    let windForce: Int
+    
+    func makeNSView(context: Context) -> NSView {
+        let window = ControlPanelWindow()
+        window.setWindForce(Double(windForce))
+        window.setWindAngle(90.0)
+        window.setShotAngle(45.0)
+        window.updatePairButtonStates(pairCount: 2)
+        window.updateClickThroughUI(enabled: false, shiftHeld: false)
+        return window.contentView ?? NSView()
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 #endif

@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windSettings: WindSettings = .default
     private var isDragging: Bool = false
     private var shiftPressed: Bool = false
+    private var clickThroughIntendedState: Bool = false
     
     // Event monitors for global hotkeys
     private var localEventMonitor: Any?
@@ -139,12 +140,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if shiftIsPressed != shiftPressed {
             shiftPressed = shiftIsPressed
             
-            if shiftIsPressed && overlayWindow.isClickThroughEnabled {
-                // Temporarily disable click-through
+            if shiftIsPressed && clickThroughIntendedState {
+                // Temporarily disable click-through while Shift is held
                 overlayWindow.setClickThrough(enabled: false)
                 controlWindow.updateClickThroughUI(enabled: true, shiftHeld: true)
-            } else if !shiftIsPressed && overlayWindow.isClickThroughEnabled {
-                // Re-enable click-through
+            } else if !shiftIsPressed && clickThroughIntendedState {
+                // Re-enable click-through when Shift is released
                 overlayWindow.setClickThrough(enabled: true)
                 controlWindow.updateClickThroughUI(enabled: true, shiftHeld: false)
             }
@@ -229,9 +230,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Click-Through
     
     private func toggleClickThrough() {
-        let newState = !overlayWindow.isClickThroughEnabled
-        overlayWindow.setClickThrough(enabled: newState)
-        controlWindow.updateClickThroughUI(enabled: newState, shiftHeld: false)
+        let newState = !clickThroughIntendedState
+        clickThroughIntendedState = newState
+        
+        // Only apply if Shift is not currently held
+        if !shiftPressed {
+            overlayWindow.setClickThrough(enabled: newState)
+        }
+        
+        controlWindow.updateClickThroughUI(enabled: newState, shiftHeld: shiftPressed)
     }
     
     // MARK: - Window Positioning

@@ -59,10 +59,10 @@
 		EE0002000000000000000002 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				EE0007000000000000000007 /* UI */,
 				EE0004000000000000000004 /* App */,
 				EE0005000000000000000005 /* Models */,
 				EE0006000000000000000006 /* Physics */,
-				EE0007000000000000000007 /* UI */,
 				EE0008000000000000000008 /* Utilities */,
 				EE0009000000000000000009 /* Windows */,
 			);
@@ -396,20 +396,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		GG0002000000000000000002 /* Build configuration list for PBXProject "GunboundAimAssistant" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				HH0001000000000000000001 /* Debug */,
-				HH0002000000000000000002 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		FF0002000000000000000002 /* Build configuration list for PBXNativeTarget "GunboundAimAssistant" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				HH0003000000000000000003 /* Debug */,
 				HH0004000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		GG0002000000000000000002 /* Build configuration list for PBXProject "GunboundAimAssistant" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				HH0001000000000000000001 /* Debug */,
+				HH0002000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
