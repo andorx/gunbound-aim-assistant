@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// Main control panel window for adjusting aim parameters
 class ControlPanelWindow: NSWindow {
@@ -59,7 +60,7 @@ class ControlPanelWindow: NSWindow {
         
         // Initialize window
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 780),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 660),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -112,7 +113,6 @@ class ControlPanelWindow: NSWindow {
         windDirLabel.font = NSFont.boldSystemFont(ofSize: 10)
         windDirLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
         contentView.addSubview(windDirLabel)
-        yOffset -= 25
         
         // Wind Angle Knob
         windAngleKnob.frame = NSRect(x: 75, y: yOffset - 150, width: 150, height: 150)
@@ -128,16 +128,13 @@ class ControlPanelWindow: NSWindow {
         // Shot Angle Slider
         shotAngleSlider.frame = NSRect(x: 10, y: yOffset, width: 280, height: 25)
         contentView.addSubview(shotAngleSlider)
-        yOffset -= 30
+        yOffset -= 20
         
         // Shot Angle Value Label
         self.shotAngleLabel.alignment = .right
         self.shotAngleLabel.frame = NSRect(x: 200, y: yOffset, width: 90, height: 20)
         contentView.addSubview(self.shotAngleLabel)
-        yOffset -= 30
-        
-        // Separator
-        yOffset -= 10
+        yOffset -= 25
         
         // Marker Pairs Label
         let pairsLabel = NSTextField(labelWithString: "Marker Pairs")
@@ -147,10 +144,10 @@ class ControlPanelWindow: NSWindow {
         yOffset -= 25
         
         // Add/Remove Pair Buttons
-        addPairButton.frame = NSRect(x: 10, y: yOffset, width: 135, height: 25)
+        addPairButton.frame = NSRect(x: 0, y: yOffset, width: 145, height: 25)
         contentView.addSubview(addPairButton)
         
-        removePairButton.frame = NSRect(x: 155, y: yOffset, width: 135, height: 25)
+        removePairButton.frame = NSRect(x: 150, y: yOffset, width: 145, height: 25)
         contentView.addSubview(removePairButton)
         yOffset -= 35
         
@@ -172,12 +169,12 @@ class ControlPanelWindow: NSWindow {
         shiftLabel.font = NSFont.boldSystemFont(ofSize: 9)
         shiftLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 15)
         contentView.addSubview(shiftLabel)
-        yOffset -= 23
+        yOffset -= 30
         
         // Click-Through Button
-        clickThroughButton.frame = NSRect(x: 10, y: yOffset, width: 280, height: 25)
+        clickThroughButton.frame = NSRect(x: 0, y: yOffset, width: 300, height: 30)
         contentView.addSubview(clickThroughButton)
-        yOffset -= 30
+        yOffset -= 20
         
         // Click-Through Status
         clickThroughStatusLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
@@ -212,7 +209,7 @@ class ControlPanelWindow: NSWindow {
         yOffset -= 30
         
         // Position Button
-        positionButton.frame = NSRect(x: 10, y: yOffset, width: 280, height: 25)
+        positionButton.frame = NSRect(x: 0, y: yOffset, width: 300, height: 25)
         contentView.addSubview(positionButton)
         
         // Initial button states
@@ -340,3 +337,49 @@ class ControlPanelWindow: NSWindow {
         }
     }
 }
+
+// MARK: - SwiftUI Preview Support
+
+#if DEBUG
+import SwiftUI
+
+/// NSViewRepresentable wrapper for ControlPanelWindow to enable Xcode Previews
+struct ControlPanelWindowPreview: NSViewRepresentable {
+    
+    func makeNSView(context: Context) -> NSView {
+        let window = ControlPanelWindow()
+        
+        // Configure window for preview
+        window.setWindForce(5.0)
+        window.setWindAngle(90.0)
+        window.setShotAngle(45.0)
+        window.updatePairButtonStates(pairCount: 2)
+        window.updateClickThroughUI(enabled: false, shiftHeld: false)
+        
+        // Return the content view for preview
+        return window.contentView ?? NSView()
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        // No updates needed for static preview
+    }
+}
+
+@available(macOS 13.0, *)
+struct ControlPanelWindow_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            // Default state preview
+            ControlPanelWindowPreview()
+                .frame(width: 300, height: 660)
+                .previewDisplayName("Control Panel - Default")
+            
+            // Dark mode preview
+            ControlPanelWindowPreview()
+                .frame(width: 300, height: 660)
+                .preferredColorScheme(.dark)
+                .previewDisplayName("Control Panel - Dark Mode")
+        }
+    }
+}
+#endif
