@@ -7,8 +7,8 @@ An overlay tool to help with aiming calculations and trajectory visualization
 import tkinter as tk
 from tkinter import ttk
 import math
+import time
 import sys
-import threading
 
 # Global hotkey support
 try:
@@ -181,7 +181,7 @@ class GunboundAimAssistant:
     def __init__(self, root):
         self.root = root
         self.root.title("Aim Controls")
-        self.root.geometry("300x720")  # Taller to accommodate window positioning controls
+        self.root.geometry("300x780")  # Taller to accommodate window positioning controls
         self.root.resizable(False, False)
         self.root.attributes("-topmost", True)
 
@@ -211,8 +211,15 @@ class GunboundAimAssistant:
         # Index of the currently active pair
         self.active_pair_index = 0
 
+        # Per-pair shot angle storage (degrees, 0-90) – matches marker_pairs by index
+        self.shot_angle_by_pair = [45.0]
+
         # Per-pair shot power storage (matches marker_pairs by index)
         self.shot_power_by_pair = [0.0]
+
+        # Drag state and throttling for smoother performance
+        self.is_dragging = False
+        self._last_drag_redraw_time = 0.0
 
         # Dragging state across pairs
         self.dragging_pair_index = None
@@ -491,6 +498,13 @@ class GunboundAimAssistant:
         # Round to 0.1 degree for smooth updates
         rounded_value = round(float(value) * 10) / 10
         self.shot_angle.set(rounded_value)
+        # Store per-pair shot angle for the currently active pair
+        idx = self.active_pair_index
+        if idx >= len(self.shot_angle_by_pair):
+            self.shot_angle_by_pair.extend(
+                [45.0] * (idx + 1 - len(self.shot_angle_by_pair))
+            )
+        self.shot_angle_by_pair[idx] = rounded_value
         self.on_param_change()
 
     def set_wind_angle(self, angle):
@@ -527,9 +541,11 @@ class GunboundAimAssistant:
                 self.dragging_role = "player"
                 # Make this pair active
                 self.active_pair_index = idx
-                # Sync shot power variable for active pair
+                # Sync shot power/angle variables for active pair
                 if idx < len(self.shot_power_by_pair):
                     self.shot_power.set(self.shot_power_by_pair[idx])
+                if idx < len(self.shot_angle_by_pair):
+                    self.shot_angle.set(self.shot_angle_by_pair[idx])
                 self.update_visualization()
                 return
 
@@ -539,9 +555,11 @@ class GunboundAimAssistant:
                 self.dragging_role = "enemy"
                 # Make this pair active
                 self.active_pair_index = idx
-                # Sync shot power variable for active pair
+                # Sync shot power/angle variables for active pair
                 if idx < len(self.shot_power_by_pair):
                     self.shot_power.set(self.shot_power_by_pair[idx])
+                if idx < len(self.shot_angle_by_pair):
+                    self.shot_angle.set(self.shot_angle_by_pair[idx])
                 self.update_visualization()
                 return
 
@@ -550,6 +568,10 @@ class GunboundAimAssistant:
         if self.dragging_pair_index is None or self.dragging_role is None:
             return
 
+        # Mark that we are in a drag operation
+        if not self.is_dragging:
+            self.is_dragging = True
+
         # Update the dragged marker for the appropriate pair
         try:
             pair = self.marker_pairs[self.dragging_pair_index]
@@ -557,12 +579,21 @@ class GunboundAimAssistant:
             return
 
         pair[self.dragging_role] = [event.x, event.y]
-        self.update_visualization()
+
+        # Throttle redraws to avoid excessive recomputation while dragging
+        now = time.time()
+        # Target ~60 FPS → ~16ms between redraws
+        if now - self._last_drag_redraw_time >= 0.016:
+            self._last_drag_redraw_time = now
+            self.update_visualization()
 
     def on_canvas_release(self, event):
         """Handle mouse release"""
         self.dragging_pair_index = None
         self.dragging_role = None
+
+        # Drag finished
+        self.is_dragging = False
 
         # Ensure final update
         self.update_visualization()
@@ -676,7 +707,8 @@ class GunboundAimAssistant:
         return 1 if pair["enemy"][0] >= pair["player"][0] else -1
 
     def calculate_trajectory(self, override_wind_force=None, override_wind_angle=None, override_power=None,
-                             override_direction=None, pair_index=None):
+                             override_direction=None, pair_index=None,
+                             override_shot_angle=None):
         """
         Calculate projectile trajectory with wind effect using Euler integration.
         Matches the physics model from claude.py for accurate trajectory prediction.
@@ -705,8 +737,15 @@ class GunboundAimAssistant:
         pair = self.marker_pairs[pair_index]
         start_x, start_y = pair["player"]
 
-        # Get input parameters
-        shot_angle = self.shot_angle.get()
+        # Get input shot angle, supporting per-pair values and optional override
+        if override_shot_angle is not None:
+            shot_angle = override_shot_angle
+        else:
+            # Ensure angle list covers this pair
+            if pair_index < len(self.shot_angle_by_pair):
+                shot_angle = self.shot_angle_by_pair[pair_index]
+            else:
+                shot_angle = self.shot_angle.get()
 
         # Use overrides if provided, otherwise use current settings
         if override_power is not None:
@@ -730,7 +769,12 @@ class GunboundAimAssistant:
 
         # Physics Constants (matching claude.py)
         GRAVITY = 9.8  # m/s²
-        TIME_STEP = 0.01  # seconds (matching claude.py)
+        # Use a slightly larger time step while dragging for performance,
+        # and a finer step otherwise for accuracy.
+        if getattr(self, "is_dragging", False):
+            TIME_STEP = 0.015
+        else:
+            TIME_STEP = 0.01  # seconds (matching claude.py)
         MAX_TIME = 60.0  # maximum simulation time
 
         # Convert angles to radians
@@ -784,13 +828,21 @@ class GunboundAimAssistant:
         if num_pairs == 0:
             return
 
-        # Ensure shot power list is at least as long as marker_pairs
+        # Ensure shot power / angle lists are at least as long as marker_pairs
         if len(self.shot_power_by_pair) < num_pairs:
             self.shot_power_by_pair.extend([0.0] * (num_pairs - len(self.shot_power_by_pair)))
+        if len(self.shot_angle_by_pair) < num_pairs:
+            self.shot_angle_by_pair.extend([self.shot_angle.get()] * (num_pairs - len(self.shot_angle_by_pair)))
 
-        # Recalculate power for each pair
-        for idx in range(num_pairs):
-            self.solve_for_power(pair_index=idx)
+        # Recalculate power values
+        if self.is_dragging:
+            # While dragging, only update the active pair to keep things responsive.
+            if 0 <= self.active_pair_index < num_pairs:
+                self.solve_for_power(pair_index=self.active_pair_index, step_p_override=2.0)
+        else:
+            # When not dragging, fully recompute power for all pairs.
+            for idx in range(num_pairs):
+                self.solve_for_power(pair_index=idx)
 
         # Color palettes for up to three pairs
         marker_player_colors = ["#48bb78", "#63b3ed", "#d6bcfa"]
@@ -798,7 +850,6 @@ class GunboundAimAssistant:
         zero_wind_colors = ["#fc8181", "#facc15", "#f472b6"]
         base_start_colors = ["#22c55e", "#3b82f6", "#a855f7"]
         base_end_colors = ["#2563eb", "#10b981", "#f97316"]
-        landing_outline_colors = ["#ecc94b", "#f97316", "#8481f9"]
 
         # Draw each pair
         for idx, pair in enumerate(self.marker_pairs):
@@ -811,7 +862,6 @@ class GunboundAimAssistant:
             zero_color = zero_wind_colors[idx % len(zero_wind_colors)]
             base_start = base_start_colors[idx % len(base_start_colors)]
             base_end = base_end_colors[idx % len(base_end_colors)]
-            landing_color = landing_outline_colors[idx % len(landing_outline_colors)]
 
             # Marker size and line width based on active state
             marker_radius = 7 if is_active else 5
@@ -839,6 +889,32 @@ class GunboundAimAssistant:
                 width=3 if is_active else 2,
             )
 
+            # Draw crosshair around enemy marker to help with alignment
+            cross_radius = 100
+            cross_color = "#e2e8f0"  # light grey
+
+            # Horizontal line of the cross
+            self.canvas.create_line(
+                ex - cross_radius,
+                ey,
+                ex + cross_radius,
+                ey,
+                fill=cross_color,
+                width=1,
+                dash=(2, 4),
+            )
+
+            # Vertical line of the cross
+            self.canvas.create_line(
+                ex,
+                ey - cross_radius,
+                ex,
+                ey + cross_radius,
+                fill=cross_color,
+                width=1,
+                dash=(2, 4),
+            )
+
             # Zero-wind trajectory (baseline) using the calculated power
             zero_wind_trajectory = self.calculate_trajectory(
                 override_wind_force=0, pair_index=idx
@@ -857,27 +933,6 @@ class GunboundAimAssistant:
                         dash=(6, 4),
                     )
 
-                # Predicted landing point for zero wind
-                last_x, last_y = zero_wind_trajectory[-1]
-                self.canvas.create_oval(
-                    last_x - 6,
-                    last_y - 6,
-                    last_x + 6,
-                    last_y + 6,
-                    outline=zero_color,
-                    width=1,
-                    dash=(6, 4),
-                )
-
-                # Label for zero-wind landing
-                self.canvas.create_text(
-                    last_x,
-                    last_y - 12,
-                    text=f"P{idx + 1} (0)",
-                    fill=zero_color,
-                    font=("Arial", 8, "bold"),
-                )
-
             # Trajectory with current wind (uses per-pair power)
             trajectory = self.calculate_trajectory(pair_index=idx)
             if len(trajectory) > 1:
@@ -895,42 +950,22 @@ class GunboundAimAssistant:
                         width=trajectory_width,
                     )
 
-                # Predicted landing point with wind
-                last_x, last_y = trajectory[-1]
-                self.canvas.create_oval(
-                    last_x - 8,
-                    last_y - 8,
-                    last_x + 8,
-                    last_y + 8,
-                    outline=landing_color,
-                    width=2 if is_active else 1,
-                )
-
-                # Label for landing point
-                self.canvas.create_text(
-                    last_x,
-                    last_y + 12,
-                    text=f"P{idx + 1}",
-                    fill=landing_color,
-                    font=("Arial", 8, "bold"),
-                )
-
-            # Distance between player and enemy for this pair
-            distance = math.sqrt((ex - px) ** 2 + (ey - py) ** 2)
-            # Offset distance labels vertically so they don't completely overlap
-            label_offset = 20 + idx * 14
-            self.canvas.create_text(
-                (px + ex) / 2,
-                (py + ey) / 2 - label_offset,
-                text=f"P{idx + 1} Dist: {distance:.1f}px",
-                fill="#cbd5e0",
-                font=("Arial", 9),
-            )
+            # # Distance between player and enemy for this pair
+            # distance = math.sqrt((ex - px) ** 2 + (ey - py) ** 2)
+            # # Offset distance labels vertically so they don't completely overlap
+            # label_offset = 20 + idx * 14
+            # self.canvas.create_text(
+            #     (px + ex) / 2,
+            #     (py + ey) / 2 - label_offset,
+            #     text=f"P{idx + 1} Dist: {distance:.1f}px",
+            #     fill="#cbd5e0",
+            #     font=("Arial", 9),
+            # )
 
         # Draw shared wind indicator once
         self.draw_wind_indicator()
 
-    def solve_for_power(self, pair_index=None):
+    def solve_for_power(self, pair_index=None, step_p_override=None, max_p_override=None):
         """
         Linearly increase power to find the best shot.
         Stops when trajectory hits the target or starts moving away (local minimum).
@@ -946,8 +981,9 @@ class GunboundAimAssistant:
 
         # Search parameters
         start_p = 0.0
-        max_p = 400.0
-        step_p = 1.0  # Resolution of power search
+        # Allow overrides for coarser/faster search during drag
+        max_p = max_p_override if max_p_override is not None else 400.0
+        step_p = step_p_override if step_p_override is not None else 1.0  # Resolution of power search
 
         best_p = 0.0
         min_dist = float('inf')
@@ -1063,6 +1099,16 @@ class GunboundAimAssistant:
         }
         self.marker_pairs.append(new_pair)
 
+        # Ensure angle list is large enough before cloning
+        if self.active_pair_index >= len(self.shot_angle_by_pair):
+            self.shot_angle_by_pair.extend(
+                [45.0] * (self.active_pair_index + 1 - len(self.shot_angle_by_pair))
+            )
+
+        # Clone shot angle for the new pair
+        base_angle = self.shot_angle_by_pair[self.active_pair_index]
+        self.shot_angle_by_pair.append(base_angle)
+
         # Clone shot power for the new pair if available
         base_power = 0.0
         if self.active_pair_index < len(self.shot_power_by_pair):
@@ -1072,6 +1118,7 @@ class GunboundAimAssistant:
         # Make the new pair active
         self.active_pair_index = len(self.marker_pairs) - 1
         self.shot_power.set(base_power)
+        self.shot_angle.set(base_angle)
 
         # Update button states
         if len(self.marker_pairs) >= 3:
@@ -1093,6 +1140,8 @@ class GunboundAimAssistant:
             del self.marker_pairs[idx]
         if 0 <= idx < len(self.shot_power_by_pair):
             del self.shot_power_by_pair[idx]
+        if 0 <= idx < len(self.shot_angle_by_pair):
+            del self.shot_angle_by_pair[idx]
 
         # Adjust active index
         if idx >= len(self.marker_pairs):
@@ -1102,10 +1151,15 @@ class GunboundAimAssistant:
         # Ensure shot_power_by_pair has at least as many entries as marker_pairs
         while len(self.shot_power_by_pair) < len(self.marker_pairs):
             self.shot_power_by_pair.append(0.0)
+        # Ensure shot_angle_by_pair has at least as many entries as marker_pairs
+        while len(self.shot_angle_by_pair) < len(self.marker_pairs):
+            self.shot_angle_by_pair.append(self.shot_angle.get())
 
         # Sync DoubleVar for active pair
         if self.active_pair_index < len(self.shot_power_by_pair):
             self.shot_power.set(self.shot_power_by_pair[self.active_pair_index])
+        if self.active_pair_index < len(self.shot_angle_by_pair):
+            self.shot_angle.set(self.shot_angle_by_pair[self.active_pair_index])
 
         # Update button states
         if len(self.marker_pairs) < 3:
