@@ -79,7 +79,7 @@ class TrajectoryView: NSView {
     }
     
     private func setupView() {
-        wantsLayer = false  // Don't use layer-backed rendering
+        wantsLayer = true  // Don't use layer-backed rendering
     }
     
     // Use flipped coordinates (top-left origin) to match Python version
@@ -101,23 +101,24 @@ class TrajectoryView: NSView {
             
             // Draw zero-wind trajectory (baseline)
             if index < zeroWindTrajectories.count {
-                drawTrajectory(
-                    context: context,
-                    trajectory: zeroWindTrajectories[index],
-                    color: colors.zeroWind,
-                    lineWidth: 1,
-                    dashed: true
-                )
+               drawGradientTrajectory(
+                  context: context,
+                  trajectory: zeroWindTrajectories[index],
+                  startColor: colors.trajectoryStart,
+                  endColor: colors.trajectoryEnd,
+                  lineWidth: 1,
+               )
             }
             
             // Draw current wind trajectory
             if index < trajectories.count {
-                drawGradientTrajectory(
+                drawTrajectory(
                     context: context,
                     trajectory: trajectories[index],
-                    startColor: colors.trajectoryStart,
-                    endColor: colors.trajectoryEnd,
-                    lineWidth: 1
+                    color: colors.zeroWind,
+                    lineWidth: 1,
+                    dashed: true,
+                    opacity: 0.7
                 )
             }
             
@@ -149,15 +150,16 @@ class TrajectoryView: NSView {
         trajectory: TrajectoryResult,
         color: NSColor,
         lineWidth: CGFloat,
-        dashed: Bool = false
+        dashed: Bool = false,
+        opacity: CGFloat = 1,
     ) {
         guard trajectory.points.count > 1 else { return }
         
-        context.setStrokeColor(color.cgColor)
+      context.setStrokeColor(color.withAlphaComponent(opacity).cgColor)
         context.setLineWidth(lineWidth)
         
         if dashed {
-            context.setLineDash(phase: 0, lengths: [2, 4])
+            context.setLineDash(phase: 0, lengths: [4, 6])
         }
         
         context.beginPath()
@@ -179,22 +181,27 @@ class TrajectoryView: NSView {
         trajectory: TrajectoryResult,
         startColor: NSColor,
         endColor: NSColor,
-        lineWidth: CGFloat
+        lineWidth: CGFloat,
+        opacity: CGFloat = 1
     ) {
         guard trajectory.points.count > 1 else { return }
-        
+
         context.setLineWidth(lineWidth)
-        
+        context.setLineDash(phase: 0, lengths: [2, 4])
+
         for i in 0..<(trajectory.points.count - 1) {
             let progress = Double(i) / Double(trajectory.points.count - 1)
             let color = ColorUtilities.interpolate(from: startColor, to: endColor, t: progress)
-            
+                .withAlphaComponent(opacity)
+
             context.setStrokeColor(color.cgColor)
             context.beginPath()
             context.move(to: trajectory.points[i].position)
             context.addLine(to: trajectory.points[i + 1].position)
             context.strokePath()
         }
+
+        context.setLineDash(phase: 0, lengths: [])
     }
     
     private func drawMarker(
@@ -223,7 +230,7 @@ class TrajectoryView: NSView {
     
     private func drawCrosshair(context: CGContext, center: CGPoint) {
         let radius: CGFloat = 100
-        let color = NSColor(red: 0.886, green: 0.910, blue: 0.941, alpha: 1.0)
+      let color = NSColor(red: 0.886, green: 0.910, blue: 0.941, alpha: 0.5)
         
         context.setStrokeColor(color.cgColor)
         context.setLineWidth(1)
@@ -253,7 +260,7 @@ class TrajectoryView: NSView {
         let endX = center.x + arrowLength * cos(radians)
         let endY = center.y - arrowLength * sin(radians)  // Negate Y for flipped coordinates
         
-        let color = NSColor(red: 0.937, green: 0.267, blue: 0.267, alpha: 1.0)
+      let color = NSColor(red: 0.03, green: 0.07, blue: 0.018, alpha: 1.0)
         
         // Draw circle background
         context.setStrokeColor(color.cgColor)
@@ -289,15 +296,15 @@ class TrajectoryView: NSView {
         context.strokePath()
         
         // Draw wind force text
-        let text = "Wind: \(Int(windSettings.force))"
+        let text = "\(Int(windSettings.force))"
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.boldSystemFont(ofSize: 10),
+            .font: NSFont.boldSystemFont(ofSize: 15),
             .foregroundColor: color
         ]
         
         let string = NSAttributedString(string: text, attributes: attributes)
         let size = string.size()
-        let textPoint = CGPoint(x: center.x - size.width / 2, y: center.y + 50)
+        let textPoint = CGPoint(x: center.x - size.width / 2, y: center.y + 35)
         
         string.draw(at: textPoint)
     }
@@ -308,8 +315,7 @@ class TrajectoryView: NSView {
         let location = convert(event.locationInWindow, from: nil)
         let hitRadius: CGFloat = 28
       
-        // If Shift is not held, make the window key to allow immediate interaction
-        if !event.modifierFlags.contains(.shift) {
+        if !event.modifierFlags.contains(.control) {
             window?.makeKeyAndOrderFront(nil)
         }
         

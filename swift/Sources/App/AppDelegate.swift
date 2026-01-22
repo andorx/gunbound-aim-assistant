@@ -13,7 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var activePairIndex: Int = 0
     private var windSettings: WindSettings = .default
     private var isDragging: Bool = false
-    private var shiftPressed: Bool = false
+    private var modifierKeyPressed: Bool = false
     private var clickThroughIntendedState: Bool = false
     
     // Event monitors for global hotkeys
@@ -122,7 +122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return event
         }
         
-        // Global monitor for Shift key
+        // Global monitor for modifier key
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
             self?.handleFlagsChanged(event)
         }
@@ -135,23 +135,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleFlagsChanged(_ event: NSEvent) {
-        let shiftIsPressed = event.modifierFlags.contains(.shift)
+        let modifierKeyIsPressed = event.modifierFlags.contains(.control)
         
-        if shiftIsPressed != shiftPressed {
-            shiftPressed = shiftIsPressed
+        if modifierKeyIsPressed != modifierKeyPressed {
+            modifierKeyPressed = modifierKeyIsPressed
             
-            if shiftIsPressed && clickThroughIntendedState {
-                // Temporarily disable click-through while Shift is held
+            if modifierKeyIsPressed && clickThroughIntendedState {
+                // Temporarily disable click-through while modifier key is held
                 overlayWindow.setClickThrough(enabled: false)
-                controlWindow.updateClickThroughUI(enabled: true, shiftHeld: true)
+                controlWindow.updateClickThroughUI(enabled: true, modifierKeyHeld: true)
               
-                // Quick focus: When click-through is disabled, Shift focuses OverlayWindow
+                // Quick focus: When click-through is disabled, modifier key focuses OverlayWindow
                 self.overlayWindow.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)
-            } else if !shiftIsPressed && clickThroughIntendedState {
-                // Re-enable click-through when Shift is released
+            } else if !modifierKeyIsPressed && clickThroughIntendedState {
+                // Re-enable click-through when modifier key is released
                 overlayWindow.setClickThrough(enabled: true)
-                controlWindow.updateClickThroughUI(enabled: true, shiftHeld: false)
+                controlWindow.updateClickThroughUI(enabled: true, modifierKeyHeld: false)
             }
         }
     }
@@ -237,12 +237,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let newState = !clickThroughIntendedState
         clickThroughIntendedState = newState
         
-        // Only apply if Shift is not currently held
-        if !shiftPressed {
+        // Only apply if modifier key is not currently held
+        if !modifierKeyPressed {
             overlayWindow.setClickThrough(enabled: newState)
         }
         
-        controlWindow.updateClickThroughUI(enabled: newState, shiftHeld: shiftPressed)
+        controlWindow.updateClickThroughUI(enabled: newState, modifierKeyHeld: modifierKeyPressed)
     }
     
     // MARK: - Window Positioning

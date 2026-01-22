@@ -32,7 +32,7 @@ class ControlPanelWindow: NSWindow {
     // MARK: - State
     
     private var currentWindForce: Int = 5
-    private var shiftPressed: Bool = false
+    private var modifierKeyPressed: Bool = false
     
     // MARK: - Initialization
     
@@ -178,10 +178,10 @@ class ControlPanelWindow: NSWindow {
         contentView.addSubview(cmdTLabel)
         yOffset -= 18
         
-        let shiftLabel = NSTextField(labelWithString: "Hold Shift: Quick Adjust Markers")
-        shiftLabel.font = NSFont.boldSystemFont(ofSize: 9)
-        shiftLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 15)
-        contentView.addSubview(shiftLabel)
+        let modifierKeyLabel = NSTextField(labelWithString: "Hold Ctrl: Quick Adjust Markers")
+        modifierKeyLabel.font = NSFont.boldSystemFont(ofSize: 9)
+        modifierKeyLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 15)
+        contentView.addSubview(modifierKeyLabel)
         yOffset -= 30
         
         // Click-Through Button
@@ -319,12 +319,12 @@ class ControlPanelWindow: NSWindow {
         removePairButton.isEnabled = pairCount > 1
     }
     
-    func updateClickThroughUI(enabled: Bool, shiftHeld: Bool) {
-        shiftPressed = shiftHeld
+    func updateClickThroughUI(enabled: Bool, modifierKeyHeld: Bool) {
+        modifierKeyPressed = modifierKeyHeld
         
-        if shiftHeld && enabled {
+        if modifierKeyHeld && enabled {
             clickThroughButton.title = "Disable Click-Through"
-            clickThroughStatusLabel.stringValue = "⇧ Shift Held: Temporarily Disabled"
+            clickThroughStatusLabel.stringValue = "⇧ Ctrl Held: Temporarily Disabled"
             clickThroughStatusLabel.textColor = NSColor(red: 0.925, green: 0.788, blue: 0.294, alpha: 1.0)
         } else if enabled {
             clickThroughButton.title = "Disable Click-Through"
@@ -383,7 +383,7 @@ struct ControlPanelWindowPreview: NSViewRepresentable {
         window.setWindAngle(90.0)
         window.setShotAngle(45.0)
         window.updatePairButtonStates(pairCount: 2)
-        window.updateClickThroughUI(enabled: false, shiftHeld: false)
+        window.updateClickThroughUI(enabled: false, modifierKeyHeld: false)
         
         // Return the content view for preview
         return window.contentView ?? NSView()
@@ -427,7 +427,7 @@ struct ControlPanelWindowPreviewCustom: NSViewRepresentable {
         window.setWindAngle(90.0)
         window.setShotAngle(45.0)
         window.updatePairButtonStates(pairCount: 2)
-        window.updateClickThroughUI(enabled: false, shiftHeld: false)
+        window.updateClickThroughUI(enabled: false, modifierKeyHeld: false)
         return window.contentView ?? NSView()
     }
     

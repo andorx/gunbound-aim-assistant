@@ -78,27 +78,27 @@ extension ColorUtilities {
         let trajectoryEnd: NSColor
         
         static let pair1 = MarkerColors(
-            player: ColorUtilities.color(fromHex: "#48bb78")!,
-            enemy: ColorUtilities.color(fromHex: "#f56565")!,
+            player: ColorUtilities.color(fromHex: "#fc8181")!,
+            enemy: ColorUtilities.color(fromHex: "#16a34a")!,
             zeroWind: ColorUtilities.color(fromHex: "#fc8181")!,
-            trajectoryStart: ColorUtilities.color(fromHex: "#22c55e")!,
-            trajectoryEnd: ColorUtilities.color(fromHex: "#2563eb")!
+            trajectoryStart: ColorUtilities.color(fromHex: "#fc8181")!,
+            trajectoryEnd: ColorUtilities.color(fromHex: "#16a34a")!
         )
         
         static let pair2 = MarkerColors(
-            player: ColorUtilities.color(fromHex: "#63b3ed")!,
-            enemy: ColorUtilities.color(fromHex: "#f6ad55")!,
+            player: ColorUtilities.color(fromHex: "#facc15")!,
+            enemy: ColorUtilities.color(fromHex: "#dc2626")!,
             zeroWind: ColorUtilities.color(fromHex: "#facc15")!,
-            trajectoryStart: ColorUtilities.color(fromHex: "#3b82f6")!,
-            trajectoryEnd: ColorUtilities.color(fromHex: "#10b981")!
+            trajectoryStart: ColorUtilities.color(fromHex: "#facc15")!,
+            trajectoryEnd: ColorUtilities.color(fromHex: "#dc2626")!
         )
         
         static let pair3 = MarkerColors(
-            player: ColorUtilities.color(fromHex: "#d6bcfa")!,
+            player: ColorUtilities.color(fromHex: "#f472b6")!,
             enemy: ColorUtilities.color(fromHex: "#fbd38d")!,
             zeroWind: ColorUtilities.color(fromHex: "#f472b6")!,
-            trajectoryStart: ColorUtilities.color(fromHex: "#a855f7")!,
-            trajectoryEnd: ColorUtilities.color(fromHex: "#f97316")!
+            trajectoryStart: ColorUtilities.color(fromHex: "#f472b6")!,
+            trajectoryEnd: ColorUtilities.color(fromHex: "#fbd38d")!
         )
         
         static func forPair(at index: Int) -> MarkerColors {
