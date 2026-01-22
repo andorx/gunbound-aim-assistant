@@ -106,7 +106,7 @@ class TrajectoryView: NSView {
                   trajectory: zeroWindTrajectories[index],
                   startColor: colors.trajectoryStart,
                   endColor: colors.trajectoryEnd,
-                  lineWidth: 1,
+                  lineWidth: 2,
                )
             }
             
@@ -118,7 +118,7 @@ class TrajectoryView: NSView {
                     color: colors.zeroWind,
                     lineWidth: 1,
                     dashed: true,
-                    opacity: 0.7
+                    opacity: 0.6
                 )
             }
             
