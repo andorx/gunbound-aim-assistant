@@ -28,9 +28,6 @@ class OverlayWindow: NSWindow {
         self.isReleasedWhenClosed = false
         self.level = .floating
         self.hasShadow = false
-        self.makeKeyAndOrderFront(nil)
-        
-        NSApp.activate(ignoringOtherApps: true)
         
         // Configure transparency
         self.isOpaque = false

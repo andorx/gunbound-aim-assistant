@@ -144,6 +144,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 // Temporarily disable click-through while Shift is held
                 overlayWindow.setClickThrough(enabled: false)
                 controlWindow.updateClickThroughUI(enabled: true, shiftHeld: true)
+              
+                // Quick focus: When click-through is disabled, Shift focuses OverlayWindow
+                self.overlayWindow.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
             } else if !shiftIsPressed && clickThroughIntendedState {
                 // Re-enable click-through when Shift is released
                 overlayWindow.setClickThrough(enabled: true)
