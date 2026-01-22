@@ -23,9 +23,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Throttling for drag updates
     private var lastDragUpdate: Date = Date()
 
+    // Flag to prevent recursive window closing
+    private var isClosingWindows: Bool = false
+
     // MARK: - Application Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Setup main menu (required for Cmd+Q to work)
+        setupMainMenu()
+
         // Check for Screen Recording permission (required for window finding)
         checkScreenRecordingPermission()
 
@@ -36,6 +42,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup callbacks
         setupControlWindowCallbacks()
         setupOverlayWindowCallbacks()
+
+        // Setup window close observers (close both windows together)
+        setupWindowCloseObservers()
 
         // Setup global hotkeys
         setupGlobalHotkeys()
@@ -78,6 +87,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
         }
+
+        // Clean up notification observers
+        NotificationCenter.default.removeObserver(self)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -85,6 +97,94 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Setup
+
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        // Application menu (shows app name in menu bar)
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+
+        // About item
+        let aboutItem = NSMenuItem(
+            title: "About Gunbound Aim Assistant",
+            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: ""
+        )
+        appMenu.addItem(aboutItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Hide item (Cmd+H)
+        let hideItem = NSMenuItem(
+            title: "Hide Gunbound Aim Assistant",
+            action: #selector(NSApplication.hide(_:)),
+            keyEquivalent: "h"
+        )
+        appMenu.addItem(hideItem)
+
+        // Hide Others item (Cmd+Option+H)
+        let hideOthersItem = NSMenuItem(
+            title: "Hide Others",
+            action: #selector(NSApplication.hideOtherApplications(_:)),
+            keyEquivalent: "h"
+        )
+        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthersItem)
+
+        // Show All item
+        let showAllItem = NSMenuItem(
+            title: "Show All",
+            action: #selector(NSApplication.unhideAllApplications(_:)),
+            keyEquivalent: ""
+        )
+        appMenu.addItem(showAllItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Quit item (Cmd+Q)
+        let quitItem = NSMenuItem(
+            title: "Quit Gunbound Aim Assistant",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        appMenu.addItem(quitItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    private func setupWindowCloseObservers() {
+        // Observe when either window is about to close
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: controlWindow
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: overlayWindow
+        )
+    }
+
+    @objc private func windowWillClose(_ notification: Notification) {
+        // Prevent recursive closing
+        guard !isClosingWindows else { return }
+        isClosingWindows = true
+
+        // Close both windows
+        controlWindow.close()
+        overlayWindow.close()
+
+        // Terminate the application
+        NSApp.terminate(nil)
+    }
 
     private func setupControlWindowCallbacks() {
         controlWindow.onWindForceChanged = { [weak self] force in
