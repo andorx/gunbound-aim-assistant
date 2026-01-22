@@ -260,12 +260,12 @@ class TrajectoryView: NSView {
         let endX = center.x + arrowLength * cos(radians)
         let endY = center.y - arrowLength * sin(radians)  // Negate Y for flipped coordinates
         
-      let color = NSColor(red: 0.03, green: 0.07, blue: 0.018, alpha: 1.0)
+        let color = NSColor(red: 0.788, green: 0.165, blue: 0.165, alpha: 1.0)
         
         // Draw circle background
         context.setStrokeColor(color.cgColor)
         context.setLineWidth(2)
-        context.addEllipse(in: CGRect(x: center.x - 35, y: center.y - 35, width: 70, height: 70))
+        context.addEllipse(in: CGRect(x: center.x - 35, y: center.y - 34, width: 70, height: 70))
         context.strokePath()
         
         // Draw arrow
