@@ -123,7 +123,6 @@ class ControlPanelWindow: NSWindow {
         
         // Wind Direction Label
         let windDirLabel = NSTextField(labelWithString: "Wind Direction:")
-        windDirLabel.font = NSFont.boldSystemFont(ofSize: 10)
         windDirLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
         contentView.addSubview(windDirLabel)
         

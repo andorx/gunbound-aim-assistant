@@ -319,15 +319,15 @@ class TrajectoryView: NSView {
             window?.makeKeyAndOrderFront(nil)
         }
         
-        // Check all pairs for hit-testing
-        for (index, pair) in markerPairs.enumerated() {
+        // Check all pairs for hit-testing (reverse order to match visual layering)
+        for (index, pair) in markerPairs.enumerated().reversed() {
             // Check player marker
             if location.distance(to: pair.playerPosition) < hitRadius {
                 draggingPair = (index, .player)
                 onPairSelected?(index)
                 return
             }
-            
+
             // Check enemy marker
             if location.distance(to: pair.enemyPosition) < hitRadius {
                 draggingPair = (index, .enemy)
