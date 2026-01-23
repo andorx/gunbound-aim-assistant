@@ -50,6 +50,15 @@ class TrajectoryView: NSView {
         }
     }
     
+    /// Whether to show the current wind trajectory lines
+    var showTrajectory: Bool = true {
+        didSet {
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
+    }
+    
     /// Callback when a marker is dragged
     var onMarkerDragged: ((Int, MarkerRole, CGPoint) -> Void)?
     
@@ -110,8 +119,8 @@ class TrajectoryView: NSView {
                )
             }
             
-            // Draw current wind trajectory
-            if index < trajectories.count {
+            // Draw current wind trajectory (if enabled)
+            if showTrajectory && index < trajectories.count {
                 drawTrajectory(
                     context: context,
                     trajectory: trajectories[index],

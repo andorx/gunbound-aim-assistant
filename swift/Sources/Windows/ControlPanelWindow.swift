@@ -14,6 +14,7 @@ class ControlPanelWindow: NSWindow {
     private let removePairButton: NSButton
     private let clickThroughButton: NSButton
     private let clickThroughStatusLabel: NSTextField
+    private let showTrajectoryCheckbox: NSButton
     private let targetWindowField: NSTextField
     private let offsetXField: NSTextField
     private let offsetYField: NSTextField
@@ -27,6 +28,7 @@ class ControlPanelWindow: NSWindow {
     var onAddPair: (() -> Void)?
     var onRemovePair: (() -> Void)?
     var onToggleClickThrough: (() -> Void)?
+    var onToggleTrajectory: ((Bool) -> Void)?
     var onPositionOverlay: ((String, CGPoint) -> Void)?
     
     // MARK: - State
@@ -53,6 +55,7 @@ class ControlPanelWindow: NSWindow {
         self.removePairButton = NSButton(title: "Remove Pair", target: nil, action: nil)
         self.clickThroughButton = NSButton(title: "Enable Click-Through", target: nil, action: nil)
         self.clickThroughStatusLabel = NSTextField(labelWithString: "✗ Click-Through: Disabled")
+        self.showTrajectoryCheckbox = NSButton(checkboxWithTitle: "Show Trajectory Lines", target: nil, action: nil)
         self.targetWindowField = NSTextField(string: "Gunbound Legend")
         self.offsetXField = NSTextField(string: "0")
         self.offsetYField = NSTextField(string: "-30")
@@ -259,6 +262,10 @@ class ControlPanelWindow: NSWindow {
         clickThroughStatusLabel.textColor = NSColor(red: 0.290, green: 0.333, blue: 0.408, alpha: 1.0)
         mainStack.addArrangedSubview(clickThroughStatusLabel)
         
+        // Trajectory toggle
+        showTrajectoryCheckbox.state = .on  // Default to showing trajectory
+        mainStack.addArrangedSubview(showTrajectoryCheckbox)
+        
         // === Window Positioning Section ===
         let positionLabel = makeLabel("Target Window Title:")
         mainStack.addArrangedSubview(positionLabel)
@@ -329,6 +336,10 @@ class ControlPanelWindow: NSWindow {
         clickThroughButton.target = self
         clickThroughButton.action = #selector(clickThroughClicked)
         
+        // Trajectory checkbox
+        showTrajectoryCheckbox.target = self
+        showTrajectoryCheckbox.action = #selector(trajectoryCheckboxChanged(_:))
+        
         // Position button
         positionButton.target = self
         positionButton.action = #selector(positionButtonClicked)
@@ -362,6 +373,11 @@ class ControlPanelWindow: NSWindow {
         onToggleClickThrough?()
     }
     
+    @objc private func trajectoryCheckboxChanged(_ sender: NSButton) {
+        let isChecked = sender.state == .on
+        onToggleTrajectory?(isChecked)
+    }
+    
     @objc private func positionButtonClicked() {
         let title = targetWindowField.stringValue
         let x = CGFloat(Int(offsetXField.stringValue) ?? 0)
@@ -388,6 +404,10 @@ class ControlPanelWindow: NSWindow {
     func updatePairButtonStates(pairCount: Int) {
         addPairButton.isEnabled = pairCount < 3
         removePairButton.isEnabled = pairCount > 1
+    }
+    
+    func setShowTrajectory(_ show: Bool) {
+        showTrajectoryCheckbox.state = show ? .on : .off
     }
     
     func updateClickThroughUI(enabled: Bool, modifierKeyHeld: Bool) {

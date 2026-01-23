@@ -217,6 +217,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.toggleClickThrough()
         }
 
+        controlWindow.onToggleTrajectory = { [weak self] showTrajectory in
+            self?.overlayWindow.getTrajectoryView().showTrajectory = showTrajectory
+        }
+
         controlWindow.onPositionOverlay = { [weak self] title, offset in
             self?.positionOverlayToTarget(title: title, offset: offset)
         }
