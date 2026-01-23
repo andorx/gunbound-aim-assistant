@@ -371,8 +371,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func positionOverlayToTarget(title: String, offset: CGPoint) {
         if WindowFinder.positionWindow(overlayWindow, relativeTo: title, offset: offset) {
-            // Success - could show a notification
-            print("✅ Positioned overlay to '\(title)'")
+            // Success - position control panel to the left of overlay
+            let overlayFrame = overlayWindow.frame
+            let controlWidth = controlWindow.frame.width
+            let controlPanelOrigin = CGPoint(
+                x: overlayFrame.origin.x - controlWidth,
+                y: overlayFrame.origin.y + overlayFrame.height - controlWindow.frame.height + offset.y
+            )
+            controlWindow.setFrameOrigin(controlPanelOrigin)
+
+            print("✅ Positioned overlay to '\(title)' with control panel adjacent")
         } else {
             // Failed - provide diagnostic info
             print("❌ Could not find window with title '\(title)'")
