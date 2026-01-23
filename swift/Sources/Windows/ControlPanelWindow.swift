@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+/// Custom content view that accepts first responder to allow blurring text fields
+private class ClickableContentView: NSView {
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func mouseDown(with event: NSEvent) {
+        // Make this view the first responder to blur any focused text field
+        window?.makeFirstResponder(self)
+        super.mouseDown(with: event)
+    }
+}
+
 /// Main control panel window for adjusting aim parameters
 class ControlPanelWindow: NSWindow {
     
@@ -35,6 +46,8 @@ class ControlPanelWindow: NSWindow {
     
     private var currentWindForce: Int = 5
     private var modifierKeyPressed: Bool = false
+    private var windForceInputBuffer: String = ""
+    private var inputCommitTimer: Timer?
     
     // MARK: - Initialization
     
@@ -285,7 +298,7 @@ class ControlPanelWindow: NSWindow {
         mainStack.addArrangedSubview(positionButton)
         
         // === Setup Content View with Main Stack ===
-        let containerView = NSView()
+        let containerView = ClickableContentView()
         containerView.addSubview(mainStack)
         self.contentView = containerView
         
@@ -426,6 +439,58 @@ class ControlPanelWindow: NSWindow {
             clickThroughStatusLabel.stringValue = "✗ Click-Through: Disabled"
             clickThroughStatusLabel.textColor = NSColor(red: 0.290, green: 0.333, blue: 0.408, alpha: 1.0)
         }
+    }
+    
+    // MARK: - Keyboard Input
+    
+    override var canBecomeKey: Bool { true }
+    
+    override func keyDown(with event: NSEvent) {
+        // Handle Escape to blur text fields
+        if event.keyCode == 53 { // Escape key
+            makeFirstResponder(contentView)
+            return
+        }
+        
+        // Handle digit input for wind force
+        guard let characters = event.charactersIgnoringModifiers,
+              let char = characters.first,
+              char.isNumber else {
+            super.keyDown(with: event)
+            return
+        }
+        
+        // Append digit and process
+        windForceInputBuffer.append(char)
+        inputCommitTimer?.invalidate()
+        
+        // Commit immediately if 2 digits or commit after delay
+        if windForceInputBuffer.count >= 2 {
+            commitWindForceInput()
+        } else {
+            inputCommitTimer = Timer.scheduledTimer(
+                withTimeInterval: 0.2,
+                repeats: false
+            ) { [weak self] _ in
+                self?.commitWindForceInput()
+            }
+        }
+    }
+    
+    private func commitWindForceInput() {
+        inputCommitTimer?.invalidate()
+        inputCommitTimer = nil
+        
+        guard let value = Int(windForceInputBuffer),
+              value >= 1 && value <= 12 else {
+            windForceInputBuffer = ""
+            return
+        }
+        
+        windForceInputBuffer = ""
+        currentWindForce = value
+        updateWindForceButtons()
+        onWindForceChanged?(Double(value))
     }
     
     // MARK: - Private Methods
