@@ -411,28 +411,41 @@ class ControlPanelWindow: NSWindow {
     // MARK: - Private Methods
     
     private func updateWindForceButtons() {
+        let textColor = NSColor.white
+        let selectedBgColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 1.0) // Bright red
+        let normalBgColor = NSColor(red: 0.435, green: 0.443, blue: 0.424, alpha: 1.0)
+        
         for (index, button) in windForceButtons.enumerated() {
             let level = index + 1
             
+            // Remove default bezel so layer styling is the only visual
+            button.isBordered = false
+            button.wantsLayer = true
+            button.layer?.cornerRadius = 6
+            button.layer?.masksToBounds = true
+            
             if level == currentWindForce {
-                // Selected button - vibrant red/orange with bold text
-                button.contentTintColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 1.0) // Bright red
-                button.bezelColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 0.2)
-                
-                // Make the text bold and slightly larger
-                button.font = NSFont.boldSystemFont(ofSize: 14)
-                
-                // Add a subtle shadow effect for depth
-                button.shadow = NSShadow()
-                button.shadow?.shadowColor = NSColor(red: 0.95, green: 0.26, blue: 0.21, alpha: 0.4)
-                button.shadow?.shadowOffset = NSSize(width: 0, height: -1)
-                button.shadow?.shadowBlurRadius = 3
+                // Selected button styling
+                let title = NSAttributedString(
+                    string: "\(level)",
+                    attributes: [
+                        .foregroundColor: textColor,
+                        .font: NSFont.boldSystemFont(ofSize: 14)
+                    ]
+                )
+                button.attributedTitle = title
+                button.layer?.backgroundColor = selectedBgColor.cgColor
             } else {
-                // Unselected buttons - neutral gray
-                button.contentTintColor = NSColor(red: 0.45, green: 0.50, blue: 0.55, alpha: 1.0)
-                button.bezelColor = nil
-                button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-                button.shadow = nil
+                // Normal button styling
+                let title = NSAttributedString(
+                    string: "\(level)",
+                    attributes: [
+                        .foregroundColor: textColor,
+                        .font: NSFont.systemFont(ofSize: 13, weight: .medium)
+                    ]
+                )
+                button.attributedTitle = title
+                button.layer?.backgroundColor = normalBgColor.cgColor
             }
         }
     }
