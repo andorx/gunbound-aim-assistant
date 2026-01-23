@@ -41,7 +41,7 @@ class ControlPanelWindow: NSWindow {
         var buttons: [NSButton] = []
         for i in 1...12 {
             let button = NSButton(title: "\(i)", target: nil, action: nil)
-            button.bezelStyle = .rounded
+            button.bezelStyle = .regularSquare
             buttons.append(button)
         }
         self.windForceButtons = buttons
@@ -74,155 +74,227 @@ class ControlPanelWindow: NSWindow {
         setupActions()
     }
     
+    // MARK: - UI Setup Helper Methods
+    
+    /// Creates a section title label with bold font
+    private func makeSectionTitle(_ text: String, size: CGFloat = 12) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = NSFont.boldSystemFont(ofSize: size)
+        return label
+    }
+    
+    /// Creates a regular label
+    private func makeLabel(_ text: String, size: CGFloat = 13, bold: Bool = false) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = bold ? NSFont.boldSystemFont(ofSize: size) : NSFont.systemFont(ofSize: size)
+        return label
+    }
+    
+    /// Creates a horizontal stack view with specified views and spacing
+    private func makeHorizontalStack(
+        views: [NSView],
+        spacing: CGFloat = 8,
+        distribution: NSStackView.Distribution = .fill
+    ) -> NSStackView {
+        let stack = NSStackView(views: views)
+        stack.orientation = .horizontal
+        stack.spacing = spacing
+        stack.distribution = distribution
+        stack.alignment = .centerY
+        return stack
+    }
+    
+    /// Creates a vertical stack view with specified views and spacing
+    private func makeVerticalStack(
+        views: [NSView],
+        spacing: CGFloat = 8,
+        alignment: NSLayoutConstraint.Attribute = .leading
+    ) -> NSStackView {
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical
+        stack.spacing = spacing
+        stack.alignment = alignment
+        return stack
+    }
+    
+    /// Creates the wind force buttons grid (3 rows x 4 columns), centered in a container
+    private func makeWindForceButtonsGrid() -> NSView {
+        let buttonWidth: CGFloat = 60
+        let buttonHeight: CGFloat = 28
+        
+        // Configure all buttons
+        for button in windForceButtons {
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.bezelStyle = .regularSquare
+            button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+            button.isBordered = true
+            
+            // Lower content hugging priority so height constraint takes precedence
+            button.setContentHuggingPriority(.defaultLow, for: .vertical)
+            button.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+            
+            NSLayoutConstraint.activate([
+                button.widthAnchor.constraint(equalToConstant: buttonWidth),
+                button.heightAnchor.constraint(equalToConstant: buttonHeight)
+            ])
+        }
+        
+        // Create 3 rows of 4 buttons each
+        var rows: [NSStackView] = []
+        for rowIndex in 0..<3 {
+            let startIndex = rowIndex * 4
+            let endIndex = min(startIndex + 4, windForceButtons.count)
+            let rowButtons = Array(windForceButtons[startIndex..<endIndex])
+            let row = makeHorizontalStack(views: rowButtons, spacing: 10, distribution: .equalSpacing)
+            rows.append(row)
+        }
+        
+        let grid = makeVerticalStack(views: rows, spacing: 5, alignment: .centerX)
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Wrap grid in a container to center it within the full width
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(grid)
+        
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: 280),
+            grid.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            grid.topAnchor.constraint(equalTo: container.topAnchor),
+            grid.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+        
+        return container
+    }
+    
+    /// Creates a labeled text field row
+    private func makeLabeledField(label: String, field: NSTextField, labelWidth: CGFloat = 20) -> NSStackView {
+        let labelView = makeLabel(label)
+        labelView.translatesAutoresizingMaskIntoConstraints = false
+        labelView.widthAnchor.constraint(equalToConstant: labelWidth).isActive = true
+        
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.widthAnchor.constraint(equalToConstant: 80).isActive = true
+        
+        return makeHorizontalStack(views: [labelView, field], spacing: 5)
+    }
+    
     // MARK: - UI Setup
     
     private func setupUI() {
-        let windowFrame = frame
-        let contentView = NSView(frame: windowFrame)
-        self.contentView = contentView
+        // Create the main vertical stack view
+        let mainStack = NSStackView()
+        mainStack.orientation = .vertical
+        mainStack.spacing = 10
+        mainStack.alignment = .leading
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
         
-        var yOffset: CGFloat = windowFrame.height - 20
+        // === Wind Settings Section ===
+        let windTitle = makeSectionTitle("Wind Settings")
+        mainStack.addArrangedSubview(windTitle)
         
-        // Title
-        let titleLabel = NSTextField(labelWithString: "Wind Settings")
-        titleLabel.font = NSFont.boldSystemFont(ofSize: 12)
-        titleLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(titleLabel)
-        yOffset -= 30
+        let buttonsGrid = makeWindForceButtonsGrid()
+        mainStack.addArrangedSubview(buttonsGrid)
         
-        // Wind Force Label
-        let windForceLabel = NSTextField(labelWithString: "Wind Force (1-12):")
-        windForceLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(windForceLabel)
-        yOffset -= 30
+        // === Wind Direction Section ===
+        let windDirLabel = makeLabel("Wind Direction:")
+        mainStack.addArrangedSubview(windDirLabel)
         
-        // Wind Force Buttons Grid (4 rows x 3 columns for better layout)
-        let gridConfig = (
-            columns: 4,
-            rows: 3,
-            buttonWidth: 70.0,
-            buttonHeight: 32.0,
-            horizontalSpacing: 0.0,
-            verticalSpacing: 0.0,
-            leftMargin: 10.0
-        )
+        // Center the knob using a container
+        let knobContainer = NSView()
+        knobContainer.translatesAutoresizingMaskIntoConstraints = false
+        windAngleKnob.translatesAutoresizingMaskIntoConstraints = false
+        knobContainer.addSubview(windAngleKnob)
         
-        for (index, button) in windForceButtons.enumerated() {
-            let row = index / gridConfig.columns
-            let col = index % gridConfig.columns
-            
-            let x = gridConfig.leftMargin + CGFloat(col) * (gridConfig.buttonWidth + gridConfig.horizontalSpacing)
-            let y = yOffset - CGFloat(row) * (gridConfig.buttonHeight + gridConfig.verticalSpacing)
-            
-            button.frame = NSRect(x: x, y: y, width: gridConfig.buttonWidth, height: gridConfig.buttonHeight)
-            button.bezelStyle = .rounded
-            button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-            contentView.addSubview(button)
-        }
-        yOffset -= CGFloat(gridConfig.rows) * (gridConfig.buttonHeight + gridConfig.verticalSpacing) + 10
+        NSLayoutConstraint.activate([
+            knobContainer.widthAnchor.constraint(equalToConstant: 280),
+            knobContainer.heightAnchor.constraint(equalToConstant: 150),
+            windAngleKnob.centerXAnchor.constraint(equalTo: knobContainer.centerXAnchor),
+            windAngleKnob.centerYAnchor.constraint(equalTo: knobContainer.centerYAnchor),
+            windAngleKnob.widthAnchor.constraint(equalToConstant: 150),
+            windAngleKnob.heightAnchor.constraint(equalToConstant: 150)
+        ])
+      
+        mainStack.addArrangedSubview(knobContainer)
         
-        // Wind Direction Label
-        let windDirLabel = NSTextField(labelWithString: "Wind Direction:")
-        windDirLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(windDirLabel)
+        // === Shot Angle Section ===
+        let shotAngleTitleLabel = makeLabel("Shot Angle (°):")
+        mainStack.addArrangedSubview(shotAngleTitleLabel)
         
-        // Wind Angle Knob
-        windAngleKnob.frame = NSRect(x: 75, y: yOffset - 150, width: 150, height: 150)
-        contentView.addSubview(windAngleKnob)
-        yOffset -= 165
+        shotAngleSlider.translatesAutoresizingMaskIntoConstraints = false
+        shotAngleSlider.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        mainStack.addArrangedSubview(shotAngleSlider)
         
-        // Shot Angle Label
-        let shotAngleLabel = NSTextField(labelWithString: "Shot Angle (°):")
-        shotAngleLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(shotAngleLabel)
-        yOffset -= 25
+        shotAngleLabel.alignment = .right
+        shotAngleLabel.translatesAutoresizingMaskIntoConstraints = false
+        shotAngleLabel.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        mainStack.addArrangedSubview(shotAngleLabel)
         
-        // Shot Angle Slider
-        shotAngleSlider.frame = NSRect(x: 10, y: yOffset, width: 280, height: 25)
-        contentView.addSubview(shotAngleSlider)
-        yOffset -= 20
+        // === Marker Pairs Section ===
+        let pairsLabel = makeSectionTitle("Marker Pairs", size: 10)
+        mainStack.addArrangedSubview(pairsLabel)
         
-        // Shot Angle Value Label
-        self.shotAngleLabel.alignment = .right
-        self.shotAngleLabel.frame = NSRect(x: 200, y: yOffset, width: 90, height: 20)
-        contentView.addSubview(self.shotAngleLabel)
-        yOffset -= 25
+        addPairButton.translatesAutoresizingMaskIntoConstraints = false
+        removePairButton.translatesAutoresizingMaskIntoConstraints = false
+        addPairButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
+        removePairButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
         
-        // Marker Pairs Label
-        let pairsLabel = NSTextField(labelWithString: "Marker Pairs")
-        pairsLabel.font = NSFont.boldSystemFont(ofSize: 10)
-        pairsLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(pairsLabel)
-        yOffset -= 25
+        let pairButtonsRow = makeHorizontalStack(views: [addPairButton, removePairButton], spacing: 8)
+        mainStack.addArrangedSubview(pairButtonsRow)
         
-        // Add/Remove Pair Buttons
-        addPairButton.frame = NSRect(x: 0, y: yOffset, width: 145, height: 25)
-        contentView.addSubview(addPairButton)
+        // === Overlay Controls Section ===
+        let overlayLabel = makeSectionTitle("Overlay Controls")
+        mainStack.addArrangedSubview(overlayLabel)
         
-        removePairButton.frame = NSRect(x: 150, y: yOffset, width: 145, height: 25)
-        contentView.addSubview(removePairButton)
-        yOffset -= 35
+        let cmdTLabel = makeLabel("Cmd+T: Toggle Click-Through", size: 9, bold: true)
+        mainStack.addArrangedSubview(cmdTLabel)
         
-        // Overlay Controls Label
-        let overlayLabel = NSTextField(labelWithString: "Overlay Controls")
-        overlayLabel.font = NSFont.boldSystemFont(ofSize: 12)
-        overlayLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(overlayLabel)
-        yOffset -= 25
+        let modifierKeyLabel = makeLabel("Hold Ctrl: Quick Adjust Markers", size: 9, bold: true)
+        mainStack.addArrangedSubview(modifierKeyLabel)
         
-        // Instructions
-        let cmdTLabel = NSTextField(labelWithString: "Cmd+T: Toggle Click-Through")
-        cmdTLabel.font = NSFont.boldSystemFont(ofSize: 9)
-        cmdTLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 15)
-        contentView.addSubview(cmdTLabel)
-        yOffset -= 18
+        clickThroughButton.translatesAutoresizingMaskIntoConstraints = false
+        clickThroughButton.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        mainStack.addArrangedSubview(clickThroughButton)
         
-        let modifierKeyLabel = NSTextField(labelWithString: "Hold Ctrl: Quick Adjust Markers")
-        modifierKeyLabel.font = NSFont.boldSystemFont(ofSize: 9)
-        modifierKeyLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 15)
-        contentView.addSubview(modifierKeyLabel)
-        yOffset -= 30
-        
-        // Click-Through Button
-        clickThroughButton.frame = NSRect(x: 0, y: yOffset, width: 300, height: 30)
-        contentView.addSubview(clickThroughButton)
-        yOffset -= 20
-        
-        // Click-Through Status
-        clickThroughStatusLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
         clickThroughStatusLabel.textColor = NSColor(red: 0.290, green: 0.333, blue: 0.408, alpha: 1.0)
-        contentView.addSubview(clickThroughStatusLabel)
-        yOffset -= 30
+        mainStack.addArrangedSubview(clickThroughStatusLabel)
         
-        // Window Positioning Section
-        let positionLabel = NSTextField(labelWithString: "Target Window Title:")
-        positionLabel.frame = NSRect(x: 10, y: yOffset, width: 280, height: 20)
-        contentView.addSubview(positionLabel)
-        yOffset -= 25
+        // === Window Positioning Section ===
+        let positionLabel = makeLabel("Target Window Title:")
+        mainStack.addArrangedSubview(positionLabel)
         
-        targetWindowField.frame = NSRect(x: 10, y: yOffset, width: 280, height: 22)
-        contentView.addSubview(targetWindowField)
-        yOffset -= 30
+        targetWindowField.translatesAutoresizingMaskIntoConstraints = false
+        targetWindowField.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        mainStack.addArrangedSubview(targetWindowField)
         
-        // Offset fields
-        let xLabel = NSTextField(labelWithString: "X:")
-        xLabel.frame = NSRect(x: 10, y: yOffset, width: 20, height: 20)
-        contentView.addSubview(xLabel)
+        // Offset fields row
+        let xFieldRow = makeLabeledField(label: "X:", field: offsetXField)
+        let yFieldRow = makeLabeledField(label: "Y:", field: offsetYField)
+        let offsetRow = makeHorizontalStack(views: [xFieldRow, yFieldRow], spacing: 20)
+        mainStack.addArrangedSubview(offsetRow)
         
-        offsetXField.frame = NSRect(x: 35, y: yOffset, width: 80, height: 22)
-        contentView.addSubview(offsetXField)
+        positionButton.translatesAutoresizingMaskIntoConstraints = false
+        positionButton.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        mainStack.addArrangedSubview(positionButton)
         
-        let yLabel = NSTextField(labelWithString: "Y:")
-        yLabel.frame = NSRect(x: 145, y: yOffset, width: 20, height: 20)
-        contentView.addSubview(yLabel)
+        // === Setup Content View with Main Stack ===
+        let containerView = NSView()
+        containerView.addSubview(mainStack)
+        self.contentView = containerView
         
-        offsetYField.frame = NSRect(x: 170, y: yOffset, width: 80, height: 22)
-        contentView.addSubview(offsetYField)
-        yOffset -= 30
+        // Pin main stack to content view with padding and fixed width
+        let contentWidth: CGFloat = 280 // 300 window width - 10 left - 10 right padding
+        NSLayoutConstraint.activate([
+            mainStack.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 15),
+            mainStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 10),
+            mainStack.widthAnchor.constraint(equalToConstant: contentWidth),
+            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: containerView.bottomAnchor, constant: -10)
+        ])
         
-        // Position Button
-        positionButton.frame = NSRect(x: 0, y: yOffset, width: 300, height: 25)
-        contentView.addSubview(positionButton)
+        // Force layout and resize window to fit content
+        containerView.layoutSubtreeIfNeeded()
+        let fittingSize = mainStack.fittingSize
+        self.setContentSize(NSSize(width: contentWidth + 20, height: fittingSize.height + 25))
         
         // Initial button states
         updateWindForceButtons()
@@ -399,19 +471,8 @@ struct ControlPanelWindow_Previews: PreviewProvider {
         Group {
             // Default state preview
             ControlPanelWindowPreview()
-                .frame(width: 300, height: 670)
+                .frame(width: 300, height: 900)
                 .previewDisplayName("Control Panel - Default")
-            
-            // Dark mode preview
-            ControlPanelWindowPreview()
-                .frame(width: 300, height: 670)
-                .preferredColorScheme(.dark)
-                .previewDisplayName("Control Panel - Dark Mode")
-            
-            // Different wind force selected
-            ControlPanelWindowPreviewCustom(windForce: 12)
-                .frame(width: 300, height: 670)
-                .previewDisplayName("Control Panel - Max Wind")
         }
     }
 }
