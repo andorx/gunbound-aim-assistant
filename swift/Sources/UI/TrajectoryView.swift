@@ -276,6 +276,12 @@ class TrajectoryView: NSView {
         context.setLineWidth(2)
         context.addEllipse(in: CGRect(x: center.x - 35, y: center.y - 34, width: 70, height: 70))
         context.strokePath()
+
+        // Draw shadow circle
+        context.setStrokeColor(color.darker(by: 0.35).cgColor)
+        context.setLineWidth(2)
+        context.addEllipse(in: CGRect(x: center.x - 36, y: center.y - 35, width: 72, height: 72))
+        context.strokePath()
         
         // Draw arrow
         context.setStrokeColor(color.cgColor)
@@ -304,11 +310,17 @@ class TrajectoryView: NSView {
         context.addLine(to: arrowPoint2)
         context.strokePath()
         
+        let shadow = NSShadow()
+        shadow.shadowOffset = NSSize(width: 2, height: -2)
+        shadow.shadowBlurRadius = 2
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.4)
+
         // Draw wind force text
         let text = "\(Int(windSettings.force))"
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.boldSystemFont(ofSize: 15),
-            .foregroundColor: color
+            .foregroundColor: color,
+            .shadow: shadow,
         ]
         
         let string = NSAttributedString(string: text, attributes: attributes)
