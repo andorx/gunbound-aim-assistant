@@ -27,8 +27,8 @@ class CircularKnob: NSView {
     /// Radius of the draggable knob
     private let knobRadius: CGFloat = 8
     
-    /// Snap angle step (15 degrees = 30 minutes on clock)
-    private let snapStep: Double = 15.0
+    /// Snap angle step (7.5 degrees = 15 minutes on clock)
+    private let snapStep: Double = 7.5
     
     // MARK: - Initialization
     
@@ -224,7 +224,7 @@ class CircularKnob: NSView {
     
     // MARK: - Helpers
     
-    /// Convert angle to clock time string (e.g., "1", "1:30", "12")
+    /// Convert angle to clock time string (e.g., "1", "1:15", "1:30", "1:45", "12")
     private func formatClockTime(angle: Double) -> String {
         // 90 degrees is 12 o'clock
         // Moving clockwise (decreasing angle in standard trig)
@@ -241,11 +241,13 @@ class CircularKnob: NSView {
             hour = 12
         }
         
-        // Check if it's a half hour (approx 0.5)
-        if abs(minutePart - 0.5) < 0.1 {
-            return "\(hour):30"
-        } else {
+        // Calculate minutes (0, 15, 30, 45)
+        let minutes = Int(round(minutePart * 60))
+        
+        if minutes == 0 {
             return "\(hour)"
+        } else {
+            return "\(hour):\(String(format: "%02d", minutes))"
         }
     }
 }

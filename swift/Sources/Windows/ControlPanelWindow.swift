@@ -61,7 +61,7 @@ class ControlPanelWindow: NSWindow {
         }
         self.windForceButtons = buttons
         
-        self.windAngleKnob = CircularKnob(size: 150, initialAngle: 90.0)
+        self.windAngleKnob = CircularKnob(size: 180, initialAngle: 90.0)
         self.shotAngleSlider = NSSlider(value: 45.0, minValue: 0.0, maxValue: 90.0, target: nil, action: nil)
         self.shotAngleLabel = NSTextField(labelWithString: "45.0°")
         self.addPairButton = NSButton(title: "Add Pair", target: nil, action: nil)
