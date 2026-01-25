@@ -63,6 +63,48 @@ enum ColorUtilities {
         
         return String(format: "#%02X%02X%02X", r, g, b)
     }
+    
+    /// Make a color darker by a given factor
+    ///
+    /// - Parameters:
+    ///   - color: The color to darken
+    ///   - factor: Amount to darken (0.0 to 1.0, where 1.0 is fully black)
+    /// - Returns: Darker color
+    static func darker(_ color: NSColor, by factor: CGFloat) -> NSColor {
+        let factor = max(0.0, min(1.0, factor))
+        
+        guard let rgb = color.usingColorSpace(.deviceRGB) else {
+            return color
+        }
+        
+        return NSColor(
+            red: max(0, rgb.redComponent * (1 - factor)),
+            green: max(0, rgb.greenComponent * (1 - factor)),
+            blue: max(0, rgb.blueComponent * (1 - factor)),
+            alpha: rgb.alphaComponent
+        )
+    }
+    
+    /// Make a color lighter by a given factor
+    ///
+    /// - Parameters:
+    ///   - color: The color to lighten
+    ///   - factor: Amount to lighten (0.0 to 1.0, where 1.0 is fully white)
+    /// - Returns: Lighter color
+    static func lighter(_ color: NSColor, by factor: CGFloat) -> NSColor {
+        let factor = max(0.0, min(1.0, factor))
+        
+        guard let rgb = color.usingColorSpace(.deviceRGB) else {
+            return color
+        }
+        
+        return NSColor(
+            red: min(1, rgb.redComponent + (1 - rgb.redComponent) * factor),
+            green: min(1, rgb.greenComponent + (1 - rgb.greenComponent) * factor),
+            blue: min(1, rgb.blueComponent + (1 - rgb.blueComponent) * factor),
+            alpha: rgb.alphaComponent
+        )
+    }
 }
 
 // MARK: - Predefined Color Palettes
@@ -76,29 +118,33 @@ extension ColorUtilities {
         let zeroWind: NSColor
         let trajectoryStart: NSColor
         let trajectoryEnd: NSColor
+
+        static let pair1Color = ColorUtilities.color(fromHex: "#E11946")!
+        static let pair2Color = ColorUtilities.color(fromHex: "#8931EF")!
+        static let pair3Color = ColorUtilities.color(fromHex: "#0257EA")!
         
         static let pair1 = MarkerColors(
-            player: ColorUtilities.color(fromHex: "#fc8181")!,
-            enemy: ColorUtilities.color(fromHex: "#FC5981")!,
-            zeroWind: ColorUtilities.color(fromHex: "#fc8181")!,
-            trajectoryStart: ColorUtilities.color(fromHex: "#fc8181")!,
-            trajectoryEnd: ColorUtilities.color(fromHex: "#fc8181")!
+            player: pair1Color,
+            enemy: ColorUtilities.darker(pair1Color, by: 0.1),
+            zeroWind: pair1Color,
+            trajectoryStart: pair1Color,
+            trajectoryEnd: pair1Color
         )
         
         static let pair2 = MarkerColors(
-            player: ColorUtilities.color(fromHex: "#F08402")!,
-            enemy: ColorUtilities.color(fromHex: "#F06A02")!,
-            zeroWind: ColorUtilities.color(fromHex: "#F08402")!,
-            trajectoryStart: ColorUtilities.color(fromHex: "#F08402")!,
-            trajectoryEnd: ColorUtilities.color(fromHex: "#F08402")!
+            player: pair2Color,
+            enemy: ColorUtilities.darker(pair2Color, by: 0.1),
+            zeroWind: pair2Color,
+            trajectoryStart: pair2Color,
+            trajectoryEnd: pair2Color
         )
         
         static let pair3 = MarkerColors(
-            player: ColorUtilities.color(fromHex: "#0C5EEA")!,
-            enemy: ColorUtilities.color(fromHex: "#0C45EA")!,
-            zeroWind: ColorUtilities.color(fromHex: "#0C5EEA")!,
-            trajectoryStart: ColorUtilities.color(fromHex: "#0C5EEA")!,
-            trajectoryEnd: ColorUtilities.color(fromHex: "#0C5EEA")!
+            player: pair3Color,
+            enemy: ColorUtilities.darker(pair3Color, by: 0.1),
+            zeroWind: pair3Color,
+            trajectoryStart: pair3Color,
+            trajectoryEnd: pair3Color
         )
         
         static func forPair(at index: Int) -> MarkerColors {

@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isDragging: Bool = false
     private var modifierKeyPressed: Bool = false
     private var clickThroughIntendedState: Bool = false
+    private var colorPaletteOffset: Int = 0
 
     // Event monitors for global hotkeys
     private var localEventMonitor: Any?
@@ -221,6 +222,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.overlayWindow.getTrajectoryView().showTrajectory = showTrajectory
         }
 
+        controlWindow.onRotateColors = { [weak self] in
+            self?.rotateColorPalette()
+        }
+
         controlWindow.onPositionOverlay = { [weak self] title, offset in
             self?.positionOverlayToTarget(title: title, offset: offset)
         }
@@ -355,6 +360,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             lastDragUpdate = now
             updateVisualization(useCoarseStep: true)
         }
+    }
+
+    // MARK: - Color Palette
+
+    private func rotateColorPalette() {
+        colorPaletteOffset = (colorPaletteOffset + 1) % 3
+        
+        // Update trajectory view
+        let trajectoryView = overlayWindow.getTrajectoryView()
+        trajectoryView.colorPaletteOffset = colorPaletteOffset
     }
 
     // MARK: - Click-Through

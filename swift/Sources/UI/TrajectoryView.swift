@@ -59,6 +59,15 @@ class TrajectoryView: NSView {
         }
     }
     
+    /// Color palette offset for rotating colors (0, 1, 2 cycles through palettes)
+    var colorPaletteOffset: Int = 0 {
+        didSet {
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
+    }
+    
     /// Callback when a marker is dragged
     var onMarkerDragged: ((Int, MarkerRole, CGPoint) -> Void)?
     
@@ -106,7 +115,7 @@ class TrajectoryView: NSView {
         // Draw each marker pair
         for (index, pair) in markerPairs.enumerated() {
             let isActive = (index == activePairIndex)
-            let colors = ColorUtilities.MarkerColors.forPair(at: index)
+            let colors = ColorUtilities.MarkerColors.forPair(at: index + colorPaletteOffset)
             
             // Draw zero-wind trajectory (baseline)
             if index < zeroWindTrajectories.count {

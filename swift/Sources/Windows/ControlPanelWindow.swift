@@ -26,6 +26,7 @@ class ControlPanelWindow: NSWindow {
     private let clickThroughButton: NSButton
     private let clickThroughStatusLabel: NSTextField
     private let showTrajectoryCheckbox: NSButton
+    private let rotateColorsButton: NSButton
     private let targetWindowField: NSTextField
     private let offsetXField: NSTextField
     private let offsetYField: NSTextField
@@ -40,6 +41,7 @@ class ControlPanelWindow: NSWindow {
     var onRemovePair: (() -> Void)?
     var onToggleClickThrough: (() -> Void)?
     var onToggleTrajectory: ((Bool) -> Void)?
+    var onRotateColors: (() -> Void)?
     var onPositionOverlay: ((String, CGPoint) -> Void)?
     
     // MARK: - State
@@ -48,6 +50,7 @@ class ControlPanelWindow: NSWindow {
     private var modifierKeyPressed: Bool = false
     private var windForceInputBuffer: String = ""
     private var inputCommitTimer: Timer?
+    private var currentColorPalette: Int = 0
     
     // MARK: - Initialization
     
@@ -68,7 +71,8 @@ class ControlPanelWindow: NSWindow {
         self.removePairButton = NSButton(title: "Remove Pair", target: nil, action: nil)
         self.clickThroughButton = NSButton(title: "Enable Click-Through", target: nil, action: nil)
         self.clickThroughStatusLabel = NSTextField(labelWithString: "✗ Click-Through: Disabled")
-        self.showTrajectoryCheckbox = NSButton(checkboxWithTitle: "Show Trajectory Lines", target: nil, action: nil)
+        self.showTrajectoryCheckbox = NSButton(checkboxWithTitle: "Show Prediction Lines", target: nil, action: nil)
+        self.rotateColorsButton = NSButton(title: "Rotate Colors", target: nil, action: nil)
         self.targetWindowField = NSTextField(string: "Gunbound Legend")
         self.offsetXField = NSTextField(string: "0")
         self.offsetYField = NSTextField(string: "-30")
@@ -279,6 +283,13 @@ class ControlPanelWindow: NSWindow {
         showTrajectoryCheckbox.state = .on  // Default to showing trajectory
         mainStack.addArrangedSubview(showTrajectoryCheckbox)
         
+        // Color rotation button and label
+        rotateColorsButton.translatesAutoresizingMaskIntoConstraints = false
+        rotateColorsButton.widthAnchor.constraint(equalToConstant: 120).isActive = true
+
+        let colorRow = makeHorizontalStack(views: [rotateColorsButton], spacing: 10)
+        mainStack.addArrangedSubview(colorRow)
+        
         // === Window Positioning Section ===
         let positionLabel = makeLabel("Target Window Title:")
         mainStack.addArrangedSubview(positionLabel)
@@ -353,6 +364,10 @@ class ControlPanelWindow: NSWindow {
         showTrajectoryCheckbox.target = self
         showTrajectoryCheckbox.action = #selector(trajectoryCheckboxChanged(_:))
         
+        // Rotate colors button
+        rotateColorsButton.target = self
+        rotateColorsButton.action = #selector(rotateColorsClicked)
+        
         // Position button
         positionButton.target = self
         positionButton.action = #selector(positionButtonClicked)
@@ -389,6 +404,10 @@ class ControlPanelWindow: NSWindow {
     @objc private func trajectoryCheckboxChanged(_ sender: NSButton) {
         let isChecked = sender.state == .on
         onToggleTrajectory?(isChecked)
+    }
+    
+    @objc private func rotateColorsClicked() {
+        onRotateColors?()
     }
     
     @objc private func positionButtonClicked() {
