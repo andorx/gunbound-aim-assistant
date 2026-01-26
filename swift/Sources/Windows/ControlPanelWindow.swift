@@ -19,8 +19,9 @@ class ControlPanelWindow: NSWindow {
     
     private let windForceButtons: [NSButton]
     private let windAngleKnob: CircularKnob
-    private let shotAngleSlider: NSSlider
-    private let shotAngleLabel: NSTextField
+    private var shotAngleSliders: [NSSlider] = []
+    private var shotAngleLabels: [NSTextField] = []
+    private var shotAngleSections: [NSView] = []  // Container views for show/hide
     private let addPairButton: NSButton
     private let removePairButton: NSButton
     private let clickThroughButton: NSButton
@@ -36,7 +37,7 @@ class ControlPanelWindow: NSWindow {
     
     var onWindForceChanged: ((Double) -> Void)?
     var onWindAngleChanged: ((Double) -> Void)?
-    var onShotAngleChanged: ((Double) -> Void)?
+    var onShotAngleChanged: ((Int, Double) -> Void)?
     var onAddPair: (() -> Void)?
     var onRemovePair: (() -> Void)?
     var onToggleClickThrough: (() -> Void)?
@@ -65,8 +66,6 @@ class ControlPanelWindow: NSWindow {
         self.windForceButtons = buttons
         
         self.windAngleKnob = CircularKnob(size: 180, initialAngle: 90.0)
-        self.shotAngleSlider = NSSlider(value: 45.0, minValue: 0.0, maxValue: 90.0, target: nil, action: nil)
-        self.shotAngleLabel = NSTextField(labelWithString: "45.0°")
         self.addPairButton = NSButton(title: "Add Pair", target: nil, action: nil)
         self.removePairButton = NSButton(title: "Remove Pair", target: nil, action: nil)
         self.clickThroughButton = NSButton(title: "Enable Click-Through", target: nil, action: nil)
@@ -237,18 +236,61 @@ class ControlPanelWindow: NSWindow {
       
         mainStack.addArrangedSubview(knobContainer)
         
-        // === Shot Angle Section ===
-        let shotAngleTitleLabel = makeLabel("Shot Angle (°):")
-        mainStack.addArrangedSubview(shotAngleTitleLabel)
+        // === Shot Angle Sections (one per pair) ===
+        let pairColors: [NSColor] = [
+            ColorUtilities.MarkerColors.pair1Color,
+            ColorUtilities.MarkerColors.pair2Color,
+            ColorUtilities.MarkerColors.pair3Color
+        ]
         
-        shotAngleSlider.translatesAutoresizingMaskIntoConstraints = false
-        shotAngleSlider.widthAnchor.constraint(equalToConstant: 280).isActive = true
-        mainStack.addArrangedSubview(shotAngleSlider)
-        
-        shotAngleLabel.alignment = .right
-        shotAngleLabel.translatesAutoresizingMaskIntoConstraints = false
-        shotAngleLabel.widthAnchor.constraint(equalToConstant: 280).isActive = true
-        mainStack.addArrangedSubview(shotAngleLabel)
+        for i in 0..<3 {
+            let sectionContainer = NSView()
+            sectionContainer.translatesAutoresizingMaskIntoConstraints = false
+            
+            let sectionStack = makeVerticalStack(views: [], spacing: 4, alignment: .leading)
+            sectionStack.translatesAutoresizingMaskIntoConstraints = false
+            sectionContainer.addSubview(sectionStack)
+            
+            NSLayoutConstraint.activate([
+                sectionStack.topAnchor.constraint(equalTo: sectionContainer.topAnchor),
+                sectionStack.leadingAnchor.constraint(equalTo: sectionContainer.leadingAnchor),
+                sectionStack.trailingAnchor.constraint(equalTo: sectionContainer.trailingAnchor),
+                sectionStack.bottomAnchor.constraint(equalTo: sectionContainer.bottomAnchor)
+            ])
+            
+            // Create title label with color indicator
+            let titleLabel = makeLabel("Pair \(i + 1) Shot Angle (°):", size: 11, bold: true)
+            titleLabel.textColor = pairColors[i]
+            sectionStack.addArrangedSubview(titleLabel)
+            
+            // Create slider with pair color
+            let slider = NSSlider(value: 45.0, minValue: 0.0, maxValue: 90.0, target: nil, action: nil)
+            slider.translatesAutoresizingMaskIntoConstraints = false
+            slider.tag = i  // Store pair index in tag
+            slider.trackFillColor = pairColors[i]
+            
+            // Create value label
+            let valueLabel = NSTextField(labelWithString: "45.0°")
+            valueLabel.alignment = .right
+            valueLabel.translatesAutoresizingMaskIntoConstraints = false
+            valueLabel.widthAnchor.constraint(equalToConstant: 45).isActive = true
+            
+            // Put slider and value label in same row
+            let sliderRow = makeHorizontalStack(views: [slider, valueLabel], spacing: 8)
+            sliderRow.translatesAutoresizingMaskIntoConstraints = false
+            sliderRow.widthAnchor.constraint(equalToConstant: 280).isActive = true
+            sectionStack.addArrangedSubview(sliderRow)
+            
+            // Store references
+            shotAngleSliders.append(slider)
+            shotAngleLabels.append(valueLabel)
+            shotAngleSections.append(sectionContainer)
+            
+            mainStack.addArrangedSubview(sectionContainer)
+            
+            // Initially hide all but the first section
+            sectionContainer.isHidden = (i > 0)
+        }
         
         // === Marker Pairs Section ===
         let pairsLabel = makeSectionTitle("Marker Pairs", size: 10)
@@ -345,9 +387,11 @@ class ControlPanelWindow: NSWindow {
             self?.onWindAngleChanged?(angle)
         }
         
-        // Shot angle slider
-        shotAngleSlider.target = self
-        shotAngleSlider.action = #selector(shotAngleSliderChanged(_:))
+        // Shot angle sliders (one per pair)
+        for slider in shotAngleSliders {
+            slider.target = self
+            slider.action = #selector(shotAngleSliderChanged(_:))
+        }
         
         // Pair buttons
         addPairButton.target = self
@@ -383,10 +427,16 @@ class ControlPanelWindow: NSWindow {
     }
     
     @objc private func shotAngleSliderChanged(_ sender: NSSlider) {
+        let pairIndex = sender.tag
         let value = sender.doubleValue
         let rounded = round(value * 10) / 10
-        shotAngleLabel.stringValue = String(format: "%.1f°", rounded)
-        onShotAngleChanged?(rounded)
+        
+        // Update the corresponding label
+        if pairIndex < shotAngleLabels.count {
+            shotAngleLabels[pairIndex].stringValue = String(format: "%.1f°", rounded)
+        }
+        
+        onShotAngleChanged?(pairIndex, rounded)
     }
     
     @objc private func addPairClicked() {
@@ -428,9 +478,27 @@ class ControlPanelWindow: NSWindow {
         windAngleKnob.setAngle(angle)
     }
     
-    func setShotAngle(_ angle: Double) {
-        shotAngleSlider.doubleValue = angle
-        shotAngleLabel.stringValue = String(format: "%.1f°", angle)
+    /// Updates shot angle controls visibility and values based on current pairs
+    /// - Parameters:
+    ///   - pairCount: Number of active marker pairs (1-3)
+    ///   - angles: Array of shot angles for each pair
+    func updateShotAngleControls(pairCount: Int, angles: [Double]) {
+        // Show/hide sections based on pair count
+        for i in 0..<shotAngleSections.count {
+            shotAngleSections[i].isHidden = (i >= pairCount)
+        }
+        
+        // Update slider values and labels
+        for (index, angle) in angles.enumerated() {
+            if index < shotAngleSliders.count {
+                shotAngleSliders[index].doubleValue = angle
+                shotAngleLabels[index].stringValue = String(format: "%.1f°", angle)
+            }
+        }
+        
+        // Also update pair button states
+        addPairButton.isEnabled = pairCount < 3
+        removePairButton.isEnabled = pairCount > 1
     }
     
     func updatePairButtonStates(pairCount: Int) {
@@ -569,8 +637,7 @@ struct ControlPanelWindowPreview: NSViewRepresentable {
         // Configure window for preview
         window.setWindForce(5.0)
         window.setWindAngle(90.0)
-        window.setShotAngle(45.0)
-        window.updatePairButtonStates(pairCount: 2)
+        window.updateShotAngleControls(pairCount: 2, angles: [45.0, 60.0])
         window.updateClickThroughUI(enabled: false, modifierKeyHeld: false)
         
         // Return the content view for preview
@@ -602,8 +669,7 @@ struct ControlPanelWindowPreviewCustom: NSViewRepresentable {
         let window = ControlPanelWindow()
         window.setWindForce(Double(windForce))
         window.setWindAngle(90.0)
-        window.setShotAngle(45.0)
-        window.updatePairButtonStates(pairCount: 2)
+        window.updateShotAngleControls(pairCount: 2, angles: [45.0, 60.0])
         window.updateClickThroughUI(enabled: false, modifierKeyHeld: false)
         return window.contentView ?? NSView()
     }

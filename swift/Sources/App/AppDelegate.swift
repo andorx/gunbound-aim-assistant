@@ -44,6 +44,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupControlWindowCallbacks()
         setupOverlayWindowCallbacks()
 
+        // Initialize shot angle controls with current pairs
+        let angles = markerPairs.map { $0.shotAngle }
+        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
+
         // Setup window close observers (close both windows together)
         setupWindowCloseObservers()
 
@@ -198,12 +202,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.updateVisualization()
         }
 
-        controlWindow.onShotAngleChanged = { [weak self] angle in
-            guard let self = self else { return }
-            if self.activePairIndex < self.markerPairs.count {
-                self.markerPairs[self.activePairIndex] = self.markerPairs[self.activePairIndex].withShotAngle(angle)
-                self.updateVisualization()
-            }
+        controlWindow.onShotAngleChanged = { [weak self] pairIndex, angle in
+            guard let self = self, pairIndex < self.markerPairs.count else { return }
+            self.markerPairs[pairIndex] = self.markerPairs[pairIndex].withShotAngle(angle)
+            self.updateVisualization()
         }
 
         controlWindow.onAddPair = { [weak self] in
@@ -299,9 +301,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Make new pair active
         activePairIndex = markerPairs.count - 1
 
-        // Update UI
-        controlWindow.updatePairButtonStates(pairCount: markerPairs.count)
-        controlWindow.setShotAngle(basePair.shotAngle)
+        // Update UI with all shot angle controls
+        let angles = markerPairs.map { $0.shotAngle }
+        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
 
         updateVisualization()
     }
@@ -316,11 +318,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             activePairIndex = markerPairs.count - 1
         }
 
-        // Update UI
-        controlWindow.updatePairButtonStates(pairCount: markerPairs.count)
-        if activePairIndex < markerPairs.count {
-            controlWindow.setShotAngle(markerPairs[activePairIndex].shotAngle)
-        }
+        // Update UI with all shot angle controls
+        let angles = markerPairs.map { $0.shotAngle }
+        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
 
         updateVisualization()
     }
@@ -330,10 +330,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         activePairIndex = index
 
-        // Update control window to show this pair's settings
-        let pair = markerPairs[index]
-        controlWindow.setShotAngle(pair.shotAngle)
-
+        // No need to update shot angle controls since each pair has its own visible slider
         updateVisualization()
     }
 
