@@ -74,8 +74,20 @@ class TrajectoryView: NSView {
     /// Callback when a marker pair is selected
     var onPairSelected: ((Int) -> Void)?
     
+    /// Callback when trajectory line is dragged to adjust angle (pairIndex, newAngle)
+    var onTrajectoryAngleDragged: ((Int, Double) -> Void)?
+    
     /// Currently dragging marker
     private var draggingPair: (index: Int, role: MarkerRole)?
+    
+    /// Currently dragging trajectory for angle adjustment
+    private var draggingTrajectoryAngle: (index: Int, initialAngle: Double, startY: CGFloat)?
+    
+    /// Degrees of angle change per pixel of vertical drag (drag up = higher angle)
+    private let angleDragSensitivity: CGFloat = 0.1  // degrees per pixel
+    
+    /// Hit radius for trajectory line (pixels from line to consider a hit)
+    private let trajectoryHitRadius: CGFloat = 20
     
     // MARK: - Marker Role
     
@@ -365,17 +377,72 @@ class TrajectoryView: NSView {
                 return
             }
         }
+        
+        // Check trajectory lines for angle-adjust drag (use gradient trajectory for hit area)
+        for (index, pair) in markerPairs.enumerated().reversed() {
+            guard index < zeroWindTrajectories.count else { continue }
+            let trajectory = zeroWindTrajectories[index]
+            
+            if distanceFromPoint(location, toPolyline: trajectory.points.map(\.position)) < trajectoryHitRadius {
+                draggingTrajectoryAngle = (index, pair.shotAngle, location.y)
+                onPairSelected?(index)
+                return
+            }
+        }
     }
     
     override func mouseDragged(with event: NSEvent) {
-        guard let (index, role) = draggingPair else { return }
-        
         let location = convert(event.locationInWindow, from: nil)
-        onMarkerDragged?(index, role, location)
+        
+        if let (index, role) = draggingPair {
+            onMarkerDragged?(index, role, location)
+            return
+        }
+        
+        if let (index, initialAngle, startY) = draggingTrajectoryAngle {
+            // Drag up (decreasing Y in flipped coords) = increase angle
+            let deltaY = startY - location.y
+            let deltaAngle = Double(deltaY) * Double(angleDragSensitivity)
+            var newAngle = initialAngle + deltaAngle
+            newAngle = max(0, min(90, newAngle))
+            
+            onTrajectoryAngleDragged?(index, newAngle)
+        }
     }
     
     override func mouseUp(with event: NSEvent) {
         draggingPair = nil
+        draggingTrajectoryAngle = nil
+    }
+    
+    /// Minimum distance from a point to a polyline (sequence of line segments)
+    private func distanceFromPoint(_ point: CGPoint, toPolyline polyline: [CGPoint]) -> CGFloat {
+        guard polyline.count >= 2 else {
+            return polyline.first.map { point.distance(to: $0) } ?? .infinity
+        }
+        
+        var minDist: CGFloat = .infinity
+        for i in 0..<(polyline.count - 1) {
+            let dist = distanceFromPoint(point, toSegment: (polyline[i], polyline[i + 1]))
+            minDist = min(minDist, dist)
+        }
+        return minDist
+    }
+    
+    /// Distance from a point to a line segment
+    private func distanceFromPoint(_ point: CGPoint, toSegment segment: (CGPoint, CGPoint)) -> CGFloat {
+        let (a, b) = segment
+        let ab = CGPoint(x: b.x - a.x, y: b.y - a.y)
+        let ap = CGPoint(x: point.x - a.x, y: point.y - a.y)
+        
+        let abLenSq = ab.x * ab.x + ab.y * ab.y
+        guard abLenSq > 0 else { return ap.distance(to: .zero) }
+        
+        var t = (ap.x * ab.x + ap.y * ab.y) / abLenSq
+        t = max(0, min(1, t))
+        
+        let closest = CGPoint(x: a.x + t * ab.x, y: a.y + t * ab.y)
+        return point.distance(to: closest)
     }
 }
 

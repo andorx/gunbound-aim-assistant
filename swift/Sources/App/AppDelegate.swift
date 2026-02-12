@@ -250,6 +250,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         trajectoryView.onPairSelected = { [weak self] index in
             self?.selectPair(at: index)
         }
+
+        trajectoryView.onTrajectoryAngleDragged = { [weak self] pairIndex, newAngle in
+            self?.handleTrajectoryAngleDrag(pairIndex: pairIndex, angle: newAngle)
+        }
     }
 
     private func setupGlobalHotkeys() {
@@ -342,6 +346,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Marker Dragging
+
+    private func handleTrajectoryAngleDrag(pairIndex: Int, angle: Double) {
+        guard pairIndex < markerPairs.count else { return }
+
+        let roundedAngle = round(angle * 10) / 10
+        markerPairs[pairIndex] = markerPairs[pairIndex].withShotAngle(roundedAngle)
+
+        // Sync control panel slider
+        let angles = markerPairs.map { $0.shotAngle }
+        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
+
+        updateVisualization()
+    }
 
     private func handleMarkerDrag(pairIndex: Int, role: TrajectoryView.MarkerRole, position: CGPoint) {
         guard pairIndex < markerPairs.count else { return }
