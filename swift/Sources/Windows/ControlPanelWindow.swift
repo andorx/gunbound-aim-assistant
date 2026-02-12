@@ -571,6 +571,34 @@ class ControlPanelWindow: NSWindow {
             return
         }
         
+        // Handle arrow keys for shot angle adjustment
+        // keyCode 126 = Up Arrow, 125 = Down Arrow
+        if event.keyCode == 126 || event.keyCode == 125 {
+            let stepSize: Double = event.modifierFlags.contains(.shift) ? 2.5 : 1.0
+            let increment: Double = event.keyCode == 126 ? stepSize : -stepSize
+            
+            // Adjust all visible shot angle sliders
+            for (index, slider) in shotAngleSliders.enumerated() {
+                guard index < shotAngleSections.count, !shotAngleSections[index].isHidden else {
+                    continue
+                }
+                
+                var newValue = slider.doubleValue + increment
+                newValue = max(slider.minValue, min(slider.maxValue, newValue))
+                
+                slider.doubleValue = newValue
+                
+                // Update label
+                if index < shotAngleLabels.count {
+                    shotAngleLabels[index].stringValue = String(format: "%.1f°", newValue)
+                }
+                
+                // Trigger callback
+                onShotAngleChanged?(index, newValue)
+            }
+            return
+        }
+        
         // Handle digit input for wind force
         guard let characters = event.charactersIgnoringModifiers,
               let char = characters.first,
