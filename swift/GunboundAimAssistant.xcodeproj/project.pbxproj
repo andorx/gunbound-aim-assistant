@@ -20,6 +20,7 @@
 		AA0010000000000000000010 /* WindowFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0010000000000000000010 /* WindowFinder.swift */; };
 		AA0011000000000000000011 /* ControlPanelWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0011000000000000000011 /* ControlPanelWindow.swift */; };
 		AA0012000000000000000012 /* OverlayWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0012000000000000000012 /* OverlayWindow.swift */; };
+		AA0013000000000000000013 /* CartType.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0013000000000000000013 /* CartType.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		BB0010000000000000000010 /* WindowFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowFinder.swift; sourceTree = "<group>"; };
 		BB0011000000000000000011 /* ControlPanelWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelWindow.swift; sourceTree = "<group>"; };
 		BB0012000000000000000012 /* OverlayWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindow.swift; sourceTree = "<group>"; };
+		BB0013000000000000000013 /* CartType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartType.swift; sourceTree = "<group>"; };
 		CC0001000000000000000001 /* GunboundAimAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GunboundAimAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -92,6 +94,7 @@
 		EE0005000000000000000005 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				BB0013000000000000000013 /* CartType.swift */,
 				BB0003000000000000000003 /* MarkerPair.swift */,
 				BB0004000000000000000004 /* TrajectoryPoint.swift */,
 				BB0005000000000000000005 /* WindSettings.swift */,
@@ -215,6 +218,7 @@
 				AA0010000000000000000010 /* WindowFinder.swift in Sources */,
 				AA0011000000000000000011 /* ControlPanelWindow.swift in Sources */,
 				AA0012000000000000000012 /* OverlayWindow.swift in Sources */,
+				AA0013000000000000000013 /* CartType.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

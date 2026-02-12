@@ -32,6 +32,7 @@ class ControlPanelWindow: NSWindow {
     private let offsetXField: NSTextField
     private let offsetYField: NSTextField
     private let positionButton: NSButton
+    private let cartTypePopUp: NSPopUpButton
     
     // MARK: - Callbacks
     
@@ -44,6 +45,7 @@ class ControlPanelWindow: NSWindow {
     var onToggleTrajectory: ((Bool) -> Void)?
     var onRotateColors: (() -> Void)?
     var onPositionOverlay: ((String, CGPoint) -> Void)?
+    var onCartTypeChanged: ((CartType) -> Void)?
     
     // MARK: - State
     
@@ -76,6 +78,7 @@ class ControlPanelWindow: NSWindow {
         self.offsetXField = NSTextField(string: "0")
         self.offsetYField = NSTextField(string: "-30")
         self.positionButton = NSButton(title: "Position Overlay", target: nil, action: nil)
+        self.cartTypePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
         
         // Initialize window
         super.init(
@@ -207,6 +210,19 @@ class ControlPanelWindow: NSWindow {
         mainStack.spacing = 10
         mainStack.alignment = .leading
         mainStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        // === Cart Type Section ===
+        let cartTypeLabel = makeLabel("Cart Type:")
+        mainStack.addArrangedSubview(cartTypeLabel)
+        
+        cartTypePopUp.translatesAutoresizingMaskIntoConstraints = false
+        cartTypePopUp.removeAllItems()
+        for cartType in CartType.allCases {
+            cartTypePopUp.addItem(withTitle: cartType.displayName)
+        }
+        cartTypePopUp.selectItem(at: 0)
+        cartTypePopUp.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        mainStack.addArrangedSubview(cartTypePopUp)
         
         // === Wind Settings Section ===
         let windTitle = makeSectionTitle("Wind Settings")
@@ -412,6 +428,10 @@ class ControlPanelWindow: NSWindow {
         rotateColorsButton.target = self
         rotateColorsButton.action = #selector(rotateColorsClicked)
         
+        // Cart type popup
+        cartTypePopUp.target = self
+        cartTypePopUp.action = #selector(cartTypePopUpChanged(_:))
+        
         // Position button
         positionButton.target = self
         positionButton.action = #selector(positionButtonClicked)
@@ -458,6 +478,12 @@ class ControlPanelWindow: NSWindow {
     
     @objc private func rotateColorsClicked() {
         onRotateColors?()
+    }
+    
+    @objc private func cartTypePopUpChanged(_ sender: NSPopUpButton) {
+        let index = sender.indexOfSelectedItem
+        guard index >= 0, index < CartType.allCases.count else { return }
+        onCartTypeChanged?(CartType.allCases[index])
     }
     
     @objc private func positionButtonClicked() {
@@ -508,6 +534,12 @@ class ControlPanelWindow: NSWindow {
     
     func setShowTrajectory(_ show: Bool) {
         showTrajectoryCheckbox.state = show ? .on : .off
+    }
+    
+    func setCartType(_ cartType: CartType) {
+        if let index = CartType.allCases.firstIndex(of: cartType) {
+            cartTypePopUp.selectItem(at: index)
+        }
     }
     
     func updateClickThroughUI(enabled: Bool, modifierKeyHeld: Bool) {

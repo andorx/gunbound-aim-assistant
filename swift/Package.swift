@@ -18,6 +18,7 @@ let package = Package(
             path: "Sources",
             sources: [
                 "Models/WindSettings.swift",
+                "Models/CartType.swift",
                 "Models/MarkerPair.swift",
                 "Models/TrajectoryPoint.swift",
                 "Physics/TrajectoryCalculator.swift",

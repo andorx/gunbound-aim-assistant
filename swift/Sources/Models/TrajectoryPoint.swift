@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// A single point in a projectile trajectory
 struct TrajectoryPoint {
@@ -65,5 +66,20 @@ struct TrajectoryResult {
         }
         
         return (minDistance, closestPoint)
+    }
+
+    /// Returns a trajectory truncated at the apex (highest point).
+    /// In flipped canvas coordinates, the apex has the minimum Y value.
+    func truncatedAtApex() -> TrajectoryResult {
+        guard !points.isEmpty, points.count > 1 else {
+            return self
+        }
+        
+        // Find apex (minimum Y = highest point on screen)
+        guard let apexIndex = points.indices.min(by: { points[$0].position.y < points[$1].position.y }) else {
+            return self
+        }
+        let truncatedPoints = Array(points[...apexIndex])
+        return TrajectoryResult(points: truncatedPoints, closestDistance: closestDistance, isHit: isHit)
     }
 }

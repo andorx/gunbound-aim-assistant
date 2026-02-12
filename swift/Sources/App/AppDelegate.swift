@@ -16,6 +16,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var modifierKeyPressed: Bool = false
     private var clickThroughIntendedState: Bool = false
     private var colorPaletteOffset: Int = 0
+    private var cartType: CartType = .default
 
     // Event monitors for global hotkeys
     private var localEventMonitor: Any?
@@ -47,6 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize shot angle controls with current pairs
         let angles = markerPairs.map { $0.shotAngle }
         controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
+        controlWindow.setCartType(cartType)
 
         // Setup window close observers (close both windows together)
         setupWindowCloseObservers()
@@ -230,6 +232,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         controlWindow.onPositionOverlay = { [weak self] title, offset in
             self?.positionOverlayToTarget(title: title, offset: offset)
+        }
+
+        controlWindow.onCartTypeChanged = { [weak self] type in
+            self?.cartType = type
+            self?.updateVisualization()
         }
     }
 
@@ -426,6 +433,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let powers = TrajectoryCalculator.solveForPowers(
             markerPairs: markerPairs,
             windSettings: windSettings,
+            cartType: cartType,
             useCoarseStep: useCoarseStep || isDragging
         )
 
@@ -451,13 +459,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             useCoarseStep: useCoarseStep || isDragging
         )
 
+        // Apply cart-type-specific display preset (e.g. Malite truncates at apex)
+        var displayTrajectories = trajectories
+        var displayZeroWind = zeroWindTrajectories
+        if cartType == .malite {
+            // For Malite, simply truncate at the apex (highest point)
+            displayTrajectories = trajectories.map { $0.truncatedAtApex() }
+            displayZeroWind = zeroWindTrajectories.map { $0.truncatedAtApex() }
+        }
+
         // Update trajectory view
         let trajectoryView = overlayWindow.getTrajectoryView()
         trajectoryView.markerPairs = markerPairs
         trajectoryView.activePairIndex = activePairIndex
         trajectoryView.windSettings = windSettings
-        trajectoryView.trajectories = trajectories
-        trajectoryView.zeroWindTrajectories = zeroWindTrajectories
+        trajectoryView.trajectories = displayTrajectories
+        trajectoryView.zeroWindTrajectories = displayZeroWind
 
         // Reset dragging flag after update
         if !useCoarseStep {

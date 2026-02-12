@@ -99,14 +99,24 @@ enum TrajectoryCalculator {
     
     // MARK: - Power Solver
     
+    /// Find the apex (highest point) of a trajectory
+    /// - Parameter trajectory: The trajectory to analyze
+    /// - Returns: The trajectory point at the apex (minimum Y in canvas coordinates), or nil if empty
+    private static func findApex(in trajectory: TrajectoryResult) -> TrajectoryPoint? {
+        guard !trajectory.points.isEmpty else { return nil }
+        return trajectory.points.min(by: { $0.position.y < $1.position.y })
+    }
+    
     /// Solve for optimal shot power to hit a target
     ///
     /// Uses linear search to find the power that brings the trajectory closest to the target.
-    /// Stops when trajectory hits the target or starts moving away (local minimum).
+    /// For Default cart: finds power where trajectory passes closest to enemy.
+    /// For Malite cart: finds power where trajectory apex X position matches enemy X position.
     ///
     /// - Parameters:
     ///   - markerPair: Player and enemy positions with shot angle
     ///   - windSettings: Wind configuration
+    ///   - cartType: Cart type affecting trajectory behavior
     ///   - hitTolerance: Distance tolerance for considering a hit (pixels)
     ///   - powerStep: Resolution of power search (default: 1.0)
     ///   - maxPower: Maximum power to search (default: 400.0)
@@ -115,9 +125,10 @@ enum TrajectoryCalculator {
     static func solveForPower(
         markerPair: MarkerPair,
         windSettings: WindSettings,
+        cartType: CartType = .default,
         hitTolerance: Double = 0.0,
         powerStep: Double = 1.0,
-        maxPower: Double = 400.0,
+        maxPower: Double = 1000.0,
         useCoarseStep: Bool = false
     ) -> Double {
         var bestPower: Double = 0.0
@@ -137,8 +148,20 @@ enum TrajectoryCalculator {
                 useCoarseStep: useCoarseStep
             )
             
-            // Find closest approach to enemy
-            let (distance, _) = trajectory.closestApproach(to: markerPair.enemyPosition)
+            // Calculate distance based on cart type
+            let distance: Double
+            switch cartType {
+            case .default:
+                // Find closest approach across all trajectory points
+                (distance, _) = trajectory.closestApproach(to: markerPair.enemyPosition)
+            case .malite:
+                // Find horizontal distance between apex X and enemy X
+                if let apex = findApex(in: trajectory) {
+                    distance = abs(apex.position.x - markerPair.enemyPosition.x)
+                } else {
+                    distance = Double.infinity
+                }
+            }
             
             // Check for hit
             if distance <= hitTolerance {
@@ -192,17 +215,20 @@ enum TrajectoryCalculator {
     /// - Parameters:
     ///   - markerPairs: Array of marker pairs
     ///   - windSettings: Wind configuration
+    ///   - cartType: Cart type affecting trajectory behavior
     ///   - useCoarseStep: Use coarser time step for performance
     /// - Returns: Array of optimal powers (same order as input)
     static func solveForPowers(
         markerPairs: [MarkerPair],
         windSettings: WindSettings,
+        cartType: CartType = .default,
         useCoarseStep: Bool = false
     ) -> [Double] {
         markerPairs.map { pair in
             solveForPower(
                 markerPair: pair,
                 windSettings: windSettings,
+                cartType: cartType,
                 useCoarseStep: useCoarseStep
             )
         }
