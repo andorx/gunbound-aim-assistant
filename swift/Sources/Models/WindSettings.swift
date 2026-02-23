@@ -19,8 +19,15 @@ struct WindSettings {
     
     /// Wind acceleration components in m/s²
     var accelerationComponents: (x: Double, y: Double) {
-        let windAccel = force * 0.1
         let radians = angle * .pi / 180.0
+        
+        // Smooth exponential scaling across all wind strengths (1-12)
+        // Power law: force^1.08 for gradual non-linear increase
+        // Wind 12 is ~1.6x stronger than wind 6
+        let powerExponent = 1.08
+        let scaledWindForce = pow(force, powerExponent) * 0.12
+        let windAccel = scaledWindForce
+        
         return (
             x: windAccel * cos(radians),
             y: windAccel * sin(radians)
