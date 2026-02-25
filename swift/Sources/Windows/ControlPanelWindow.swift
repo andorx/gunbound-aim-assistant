@@ -32,6 +32,8 @@ class ControlPanelWindow: NSWindow {
     private let offsetXField: NSTextField
     private let offsetYField: NSTextField
     private let positionButton: NSButton
+    private let windowPositioningHeaderButton: NSButton
+    private let windowPositioningContainer: NSStackView
     private let cartTypePopUp: NSPopUpButton
     
     // MARK: - Callbacks
@@ -54,6 +56,7 @@ class ControlPanelWindow: NSWindow {
     private var windForceInputBuffer: String = ""
     private var inputCommitTimer: Timer?
     private var currentColorPalette: Int = 0
+    private var isWindowPositioningCollapsed: Bool = false
     
     // MARK: - Initialization
     
@@ -78,6 +81,8 @@ class ControlPanelWindow: NSWindow {
         self.offsetXField = NSTextField(string: "0")
         self.offsetYField = NSTextField(string: "-30")
         self.positionButton = NSButton(title: "Position Overlay", target: nil, action: nil)
+        self.windowPositioningHeaderButton = NSButton(title: "▼ Window Positioning", target: nil, action: nil)
+        self.windowPositioningContainer = NSStackView()
         self.cartTypePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
         
         // Initialize window
@@ -142,7 +147,7 @@ class ControlPanelWindow: NSWindow {
     /// Creates the wind force buttons grid (3 rows x 4 columns), centered in a container
     private func makeWindForceButtonsGrid() -> NSView {
         let buttonWidth: CGFloat = 60
-        let buttonHeight: CGFloat = 28
+        let buttonHeight: CGFloat = 24
         
         // Configure all buttons
         for button in windForceButtons {
@@ -231,10 +236,6 @@ class ControlPanelWindow: NSWindow {
         let buttonsGrid = makeWindForceButtonsGrid()
         mainStack.addArrangedSubview(buttonsGrid)
         
-        // === Wind Direction Section ===
-        let windDirLabel = makeLabel("Wind Direction:")
-        mainStack.addArrangedSubview(windDirLabel)
-        
         // Center the knob using a container
         let knobContainer = NSView()
         knobContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -243,9 +244,9 @@ class ControlPanelWindow: NSWindow {
         
         NSLayoutConstraint.activate([
             knobContainer.widthAnchor.constraint(equalToConstant: 280),
-            knobContainer.heightAnchor.constraint(equalToConstant: 150),
             windAngleKnob.centerXAnchor.constraint(equalTo: knobContainer.centerXAnchor),
-            windAngleKnob.centerYAnchor.constraint(equalTo: knobContainer.centerYAnchor),
+            windAngleKnob.topAnchor.constraint(equalTo: knobContainer.topAnchor, constant: 10),
+            windAngleKnob.bottomAnchor.constraint(equalTo: knobContainer.bottomAnchor, constant: -10),
             windAngleKnob.widthAnchor.constraint(equalToConstant: 150),
             windAngleKnob.heightAnchor.constraint(equalToConstant: 150)
         ])
@@ -349,22 +350,36 @@ class ControlPanelWindow: NSWindow {
         mainStack.addArrangedSubview(colorRow)
         
         // === Window Positioning Section ===
+        windowPositioningHeaderButton.bezelStyle = .disclosure
+        windowPositioningHeaderButton.setButtonType(.momentaryPushIn)
+        windowPositioningHeaderButton.isBordered = false
+        windowPositioningHeaderButton.alignment = .left
+        mainStack.addArrangedSubview(windowPositioningHeaderButton)
+        
         let positionLabel = makeLabel("Target Window Title:")
-        mainStack.addArrangedSubview(positionLabel)
         
         targetWindowField.translatesAutoresizingMaskIntoConstraints = false
         targetWindowField.widthAnchor.constraint(equalToConstant: 280).isActive = true
-        mainStack.addArrangedSubview(targetWindowField)
         
         // Offset fields row
         let xFieldRow = makeLabeledField(label: "X:", field: offsetXField)
         let yFieldRow = makeLabeledField(label: "Y:", field: offsetYField)
         let offsetRow = makeHorizontalStack(views: [xFieldRow, yFieldRow], spacing: 20)
-        mainStack.addArrangedSubview(offsetRow)
         
         positionButton.translatesAutoresizingMaskIntoConstraints = false
         positionButton.widthAnchor.constraint(equalToConstant: 280).isActive = true
-        mainStack.addArrangedSubview(positionButton)
+        
+        // Build container stack for window positioning controls
+        windowPositioningContainer.orientation = .vertical
+        windowPositioningContainer.spacing = 6
+        windowPositioningContainer.alignment = .leading
+        windowPositioningContainer.translatesAutoresizingMaskIntoConstraints = false
+        windowPositioningContainer.addArrangedSubview(positionLabel)
+        windowPositioningContainer.addArrangedSubview(targetWindowField)
+        windowPositioningContainer.addArrangedSubview(offsetRow)
+        windowPositioningContainer.addArrangedSubview(positionButton)
+        
+        mainStack.addArrangedSubview(windowPositioningContainer)
         
         // === Setup Content View with Main Stack ===
         let containerView = ClickableContentView()
@@ -432,6 +447,10 @@ class ControlPanelWindow: NSWindow {
         cartTypePopUp.target = self
         cartTypePopUp.action = #selector(cartTypePopUpChanged(_:))
         
+        // Window positioning header
+        windowPositioningHeaderButton.target = self
+        windowPositioningHeaderButton.action = #selector(toggleWindowPositioningSection)
+        
         // Position button
         positionButton.target = self
         positionButton.action = #selector(positionButtonClicked)
@@ -491,6 +510,23 @@ class ControlPanelWindow: NSWindow {
         let x = CGFloat(Int(offsetXField.stringValue) ?? 0)
         let y = CGFloat(Int(offsetYField.stringValue) ?? -30)
         onPositionOverlay?(title, CGPoint(x: x, y: y))
+    }
+    
+    @objc private func toggleWindowPositioningSection() {
+        isWindowPositioningCollapsed.toggle()
+        windowPositioningContainer.isHidden = isWindowPositioningCollapsed
+        windowPositioningHeaderButton.title = isWindowPositioningCollapsed ? "► Window Positioning" : "▼ Window Positioning"
+        
+        // Adjust window height to fit updated content
+        if let containerView = self.contentView as? ClickableContentView {
+            containerView.layoutSubtreeIfNeeded()
+            
+            if let mainStack = containerView.subviews.first(where: { $0 is NSStackView }) as? NSStackView {
+                let fittingSize = mainStack.fittingSize
+                let currentWidth = self.frame.size.width
+                self.setContentSize(NSSize(width: currentWidth, height: fittingSize.height + 25))
+            }
+        }
     }
     
     // MARK: - Public Methods
