@@ -16,7 +16,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var modifierKeyPressed: Bool = false
     private var clickThroughIntendedState: Bool = false
     private var colorPaletteOffset: Int = 0
-    private var cartType: CartType = .default
 
     // Event monitors for global hotkeys
     private var localEventMonitor: Any?
@@ -47,8 +46,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize shot angle controls with current pairs
         let angles = markerPairs.map { $0.shotAngle }
-        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
-        controlWindow.setCartType(cartType)
+        let cartTypes = markerPairs.map { $0.cartType }
+        controlWindow.updateShotAngleControls(
+            pairCount: markerPairs.count,
+            angles: angles,
+            cartTypes: cartTypes
+        )
 
         // Setup window close observers (close both windows together)
         setupWindowCloseObservers()
@@ -233,10 +236,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         controlWindow.onPositionOverlay = { [weak self] title, offset in
             self?.positionOverlayToTarget(title: title, offset: offset)
         }
-
-        controlWindow.onCartTypeChanged = { [weak self] type in
-            self?.cartType = type
-            self?.updateVisualization()
+        
+        controlWindow.onCartTypeChangedForPair = { [weak self] pairIndex, type in
+            guard let self = self,
+                  pairIndex < self.markerPairs.count else { return }
+            self.markerPairs[pairIndex] = self.markerPairs[pairIndex].withCartType(type)
+            self.updateVisualization()
         }
     }
 
@@ -312,9 +317,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Make new pair active
         activePairIndex = markerPairs.count - 1
 
-        // Update UI with all shot angle controls
+        // Update UI with all shot angle and cart type controls
         let angles = markerPairs.map { $0.shotAngle }
-        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
+        let cartTypes = markerPairs.map { $0.cartType }
+        controlWindow.updateShotAngleControls(
+            pairCount: markerPairs.count,
+            angles: angles,
+            cartTypes: cartTypes
+        )
 
         updateVisualization()
     }
@@ -329,9 +339,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             activePairIndex = markerPairs.count - 1
         }
 
-        // Update UI with all shot angle controls
+        // Update UI with all shot angle and cart type controls
         let angles = markerPairs.map { $0.shotAngle }
-        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
+        let cartTypes = markerPairs.map { $0.cartType }
+        controlWindow.updateShotAngleControls(
+            pairCount: markerPairs.count,
+            angles: angles,
+            cartTypes: cartTypes
+        )
 
         updateVisualization()
     }
@@ -353,9 +368,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let roundedAngle = round(angle * 10) / 10
         markerPairs[pairIndex] = markerPairs[pairIndex].withShotAngle(roundedAngle)
 
-        // Sync control panel slider
+        // Sync control panel slider and cart type popup
         let angles = markerPairs.map { $0.shotAngle }
-        controlWindow.updateShotAngleControls(pairCount: markerPairs.count, angles: angles)
+        let cartTypes = markerPairs.map { $0.cartType }
+        controlWindow.updateShotAngleControls(
+            pairCount: markerPairs.count,
+            angles: angles,
+            cartTypes: cartTypes
+        )
 
         updateVisualization()
     }
@@ -450,7 +470,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let powers = TrajectoryCalculator.solveForPowers(
             markerPairs: markerPairs,
             windSettings: windSettings,
-            cartType: cartType,
             useCoarseStep: useCoarseStep || isDragging
         )
 
@@ -476,13 +495,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             useCoarseStep: useCoarseStep || isDragging
         )
 
-        // Apply cart-type-specific display preset (e.g. Malite truncates at apex)
-        var displayTrajectories = trajectories
-        var displayZeroWind = zeroWindTrajectories
-        if cartType == .malite {
-            // For Malite, simply truncate at the apex (highest point)
-            displayTrajectories = trajectories.map { $0.truncatedAtApex() }
-            displayZeroWind = zeroWindTrajectories.map { $0.truncatedAtApex() }
+        // Apply cart-type-specific display preset per pair (e.g. Malite truncates at apex)
+        var displayTrajectories: [TrajectoryResult] = []
+        var displayZeroWind: [TrajectoryResult] = []
+        
+        for (index, trajectory) in trajectories.enumerated() {
+            let zeroTrajectory = index < zeroWindTrajectories.count ? zeroWindTrajectories[index] : trajectory
+            let cartType = index < markerPairs.count ? markerPairs[index].cartType : .default
+            
+            switch cartType {
+            case .default:
+                displayTrajectories.append(trajectory)
+                displayZeroWind.append(zeroTrajectory)
+            case .malite:
+                displayTrajectories.append(trajectory.truncatedAtApex())
+                displayZeroWind.append(zeroTrajectory.truncatedAtApex())
+            }
         }
 
         // Update trajectory view

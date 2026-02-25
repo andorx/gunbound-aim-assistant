@@ -213,22 +213,20 @@ enum TrajectoryCalculator {
     /// Solve for optimal power for multiple marker pairs
     ///
     /// - Parameters:
-    ///   - markerPairs: Array of marker pairs
+    ///   - markerPairs: Array of marker pairs (each with its own cart type)
     ///   - windSettings: Wind configuration
-    ///   - cartType: Cart type affecting trajectory behavior
     ///   - useCoarseStep: Use coarser time step for performance
     /// - Returns: Array of optimal powers (same order as input)
     static func solveForPowers(
         markerPairs: [MarkerPair],
         windSettings: WindSettings,
-        cartType: CartType = .default,
         useCoarseStep: Bool = false
     ) -> [Double] {
         markerPairs.map { pair in
             solveForPower(
                 markerPair: pair,
                 windSettings: windSettings,
-                cartType: cartType,
+                cartType: pair.cartType,
                 useCoarseStep: useCoarseStep
             )
         }

@@ -22,6 +22,7 @@ class ControlPanelWindow: NSWindow {
     private var shotAngleSliders: [NSSlider] = []
     private var shotAngleLabels: [NSTextField] = []
     private var shotAngleSections: [NSView] = []  // Container views for show/hide
+    private var cartTypePopUps: [NSPopUpButton] = []
     private let addPairButton: NSButton
     private let removePairButton: NSButton
     private let clickThroughButton: NSButton
@@ -34,7 +35,6 @@ class ControlPanelWindow: NSWindow {
     private let positionButton: NSButton
     private let windowPositioningHeaderButton: NSButton
     private let windowPositioningContainer: NSStackView
-    private let cartTypePopUp: NSPopUpButton
     
     // MARK: - Callbacks
     
@@ -47,7 +47,7 @@ class ControlPanelWindow: NSWindow {
     var onToggleTrajectory: ((Bool) -> Void)?
     var onRotateColors: (() -> Void)?
     var onPositionOverlay: ((String, CGPoint) -> Void)?
-    var onCartTypeChanged: ((CartType) -> Void)?
+    var onCartTypeChangedForPair: ((Int, CartType) -> Void)?
     
     // MARK: - State
     
@@ -83,7 +83,6 @@ class ControlPanelWindow: NSWindow {
         self.positionButton = NSButton(title: "Position Overlay", target: nil, action: nil)
         self.windowPositioningHeaderButton = NSButton(title: "▼ Window Positioning", target: nil, action: nil)
         self.windowPositioningContainer = NSStackView()
-        self.cartTypePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
         
         // Initialize window
         super.init(
@@ -216,19 +215,6 @@ class ControlPanelWindow: NSWindow {
         mainStack.alignment = .leading
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         
-        // === Cart Type Section ===
-        let cartTypeLabel = makeLabel("Cart Type:")
-        mainStack.addArrangedSubview(cartTypeLabel)
-        
-        cartTypePopUp.translatesAutoresizingMaskIntoConstraints = false
-        cartTypePopUp.removeAllItems()
-        for cartType in CartType.allCases {
-            cartTypePopUp.addItem(withTitle: cartType.displayName)
-        }
-        cartTypePopUp.selectItem(at: 0)
-        cartTypePopUp.widthAnchor.constraint(equalToConstant: 280).isActive = true
-        mainStack.addArrangedSubview(cartTypePopUp)
-        
         // === Wind Settings Section ===
         let windTitle = makeSectionTitle("Wind Settings")
         mainStack.addArrangedSubview(windTitle)
@@ -290,18 +276,30 @@ class ControlPanelWindow: NSWindow {
             let valueLabel = NSTextField(labelWithString: "45.0°")
             valueLabel.alignment = .right
             valueLabel.translatesAutoresizingMaskIntoConstraints = false
-            valueLabel.widthAnchor.constraint(equalToConstant: 45).isActive = true
+            valueLabel.widthAnchor.constraint(equalToConstant: 35).isActive = true
             
+
+            let cartPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
+            cartPopUp.translatesAutoresizingMaskIntoConstraints = false
+            cartPopUp.removeAllItems()
+            for cartType in CartType.allCases {
+                cartPopUp.addItem(withTitle: cartType.displayName)
+            }
+            cartPopUp.selectItem(at: 0)
+            cartPopUp.tag = i
+            cartPopUp.widthAnchor.constraint(equalToConstant: 80).isActive = true
+
             // Put slider and value label in same row
-            let sliderRow = makeHorizontalStack(views: [slider, valueLabel], spacing: 8)
+            let sliderRow = makeHorizontalStack(views: [cartPopUp, slider, valueLabel], spacing: 8)
             sliderRow.translatesAutoresizingMaskIntoConstraints = false
             sliderRow.widthAnchor.constraint(equalToConstant: 280).isActive = true
             sectionStack.addArrangedSubview(sliderRow)
-            
+
             // Store references
             shotAngleSliders.append(slider)
             shotAngleLabels.append(valueLabel)
             shotAngleSections.append(sectionContainer)
+            cartTypePopUps.append(cartPopUp)
             
             mainStack.addArrangedSubview(sectionContainer)
             
@@ -324,9 +322,6 @@ class ControlPanelWindow: NSWindow {
         // === Overlay Controls Section ===
         let overlayLabel = makeSectionTitle("Overlay Controls")
         mainStack.addArrangedSubview(overlayLabel)
-        
-        let cmdTLabel = makeLabel("Cmd+T: Toggle Click-Through", size: 9, bold: true)
-        mainStack.addArrangedSubview(cmdTLabel)
         
         let modifierKeyLabel = makeLabel("Hold Ctrl: Quick Adjust Markers", size: 9, bold: true)
         mainStack.addArrangedSubview(modifierKeyLabel)
@@ -443,9 +438,11 @@ class ControlPanelWindow: NSWindow {
         rotateColorsButton.target = self
         rotateColorsButton.action = #selector(rotateColorsClicked)
         
-        // Cart type popup
-        cartTypePopUp.target = self
-        cartTypePopUp.action = #selector(cartTypePopUpChanged(_:))
+        // Cart type popups (one per pair)
+        for popup in cartTypePopUps {
+            popup.target = self
+            popup.action = #selector(cartTypePopUpChangedForPair(_:))
+        }
         
         // Window positioning header
         windowPositioningHeaderButton.target = self
@@ -499,10 +496,15 @@ class ControlPanelWindow: NSWindow {
         onRotateColors?()
     }
     
-    @objc private func cartTypePopUpChanged(_ sender: NSPopUpButton) {
-        let index = sender.indexOfSelectedItem
-        guard index >= 0, index < CartType.allCases.count else { return }
-        onCartTypeChanged?(CartType.allCases[index])
+    @objc private func cartTypePopUpChangedForPair(_ sender: NSPopUpButton) {
+        let typeIndex = sender.indexOfSelectedItem
+        let pairIndex = sender.tag
+        guard typeIndex >= 0,
+              typeIndex < CartType.allCases.count,
+              pairIndex >= 0 else { return }
+        
+        let cartType = CartType.allCases[typeIndex]
+        onCartTypeChangedForPair?(pairIndex, cartType)
     }
     
     @objc private func positionButtonClicked() {
@@ -534,7 +536,8 @@ class ControlPanelWindow: NSWindow {
     /// - Parameters:
     ///   - pairCount: Number of active marker pairs (1-3)
     ///   - angles: Array of shot angles for each pair
-    func updateShotAngleControls(pairCount: Int, angles: [Double]) {
+    ///   - cartTypes: Array of cart types for each pair
+    func updateShotAngleControls(pairCount: Int, angles: [Double], cartTypes: [CartType]) {
         // Show/hide sections based on pair count
         for i in 0..<shotAngleSections.count {
             shotAngleSections[i].isHidden = (i >= pairCount)
@@ -545,6 +548,15 @@ class ControlPanelWindow: NSWindow {
             if index < shotAngleSliders.count {
                 shotAngleSliders[index].doubleValue = angle
                 shotAngleLabels[index].stringValue = String(format: "%.1f°", angle)
+            }
+        }
+        
+        // Update cart type popups
+        for (index, cartType) in cartTypes.enumerated() {
+            guard index < cartTypePopUps.count else { continue }
+            let popup = cartTypePopUps[index]
+            if let cartIndex = CartType.allCases.firstIndex(of: cartType) {
+                popup.selectItem(at: cartIndex)
             }
         }
         
@@ -565,25 +577,19 @@ class ControlPanelWindow: NSWindow {
         showTrajectoryCheckbox.state = show ? .on : .off
     }
     
-    func setCartType(_ cartType: CartType) {
-        if let index = CartType.allCases.firstIndex(of: cartType) {
-            cartTypePopUp.selectItem(at: index)
-        }
-    }
-    
     func updateClickThroughUI(enabled: Bool, modifierKeyHeld: Bool) {
         modifierKeyPressed = modifierKeyHeld
         
         if modifierKeyHeld && enabled {
-            clickThroughButton.title = "Disable Click-Through"
+            clickThroughButton.title = "Disable Click-Through (Cmd+T)"
             clickThroughStatusLabel.stringValue = "⇧ Ctrl Held: Temporarily Disabled"
             clickThroughStatusLabel.textColor = NSColor(red: 0.925, green: 0.788, blue: 0.294, alpha: 1.0)
         } else if enabled {
-            clickThroughButton.title = "Disable Click-Through"
+            clickThroughButton.title = "Disable Click-Through (Cmd+T)"
             clickThroughStatusLabel.stringValue = "✓ Click-Through: Enabled"
             clickThroughStatusLabel.textColor = NSColor(red: 0.282, green: 0.733, blue: 0.471, alpha: 1.0)
         } else {
-            clickThroughButton.title = "Enable Click-Through"
+            clickThroughButton.title = "Enable Click-Through (Cmd+T)"
             clickThroughStatusLabel.stringValue = "✗ Click-Through: Disabled"
             clickThroughStatusLabel.textColor = NSColor(red: 0.290, green: 0.333, blue: 0.408, alpha: 1.0)
         }
@@ -756,7 +762,11 @@ struct ControlPanelWindowPreview: NSViewRepresentable {
         // Configure window for preview
         window.setWindForce(5.0)
         window.setWindAngle(90.0)
-        window.updateShotAngleControls(pairCount: 2, angles: [45.0, 60.0])
+        window.updateShotAngleControls(
+            pairCount: 2,
+            angles: [45.0, 60.0],
+            cartTypes: [.default, .malite]
+        )
         window.updateClickThroughUI(enabled: false, modifierKeyHeld: false)
         
         // Return the content view for preview
@@ -788,7 +798,11 @@ struct ControlPanelWindowPreviewCustom: NSViewRepresentable {
         let window = ControlPanelWindow()
         window.setWindForce(Double(windForce))
         window.setWindAngle(90.0)
-        window.updateShotAngleControls(pairCount: 2, angles: [45.0, 60.0])
+        window.updateShotAngleControls(
+            pairCount: 2,
+            angles: [45.0, 60.0],
+            cartTypes: [.default, .malite]
+        )
         window.updateClickThroughUI(enabled: false, modifierKeyHeld: false)
         return window.contentView ?? NSView()
     }

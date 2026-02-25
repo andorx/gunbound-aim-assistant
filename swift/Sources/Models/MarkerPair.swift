@@ -14,20 +14,25 @@ struct MarkerPair {
     /// Calculated shot power (0-400)
     var shotPower: Double
     
+    /// Cart type used for this marker pair
+    var cartType: CartType
+    
     /// Default marker pair
     static let `default` = MarkerPair(
         playerPosition: CGPoint(x: 200, y: 600),
         enemyPosition: CGPoint(x: 850, y: 600),
         shotAngle: 45.0,
-        shotPower: 0.0
+        shotPower: 0.0,
+        cartType: .default
     )
     
     /// Create a marker pair with validation
-    init(playerPosition: CGPoint, enemyPosition: CGPoint, shotAngle: Double, shotPower: Double) {
+    init(playerPosition: CGPoint, enemyPosition: CGPoint, shotAngle: Double, shotPower: Double, cartType: CartType = .default) {
         self.playerPosition = playerPosition
         self.enemyPosition = enemyPosition
         self.shotAngle = max(0.0, min(90.0, shotAngle))
         self.shotPower = max(0.0, min(400.0, shotPower))
+        self.cartType = cartType
     }
     
     /// Horizontal direction from player to enemy (1 for right, -1 for left)
@@ -48,7 +53,8 @@ struct MarkerPair {
             playerPosition: position,
             enemyPosition: enemyPosition,
             shotAngle: shotAngle,
-            shotPower: shotPower
+            shotPower: shotPower,
+            cartType: cartType
         )
     }
     
@@ -58,7 +64,8 @@ struct MarkerPair {
             playerPosition: playerPosition,
             enemyPosition: position,
             shotAngle: shotAngle,
-            shotPower: shotPower
+            shotPower: shotPower,
+            cartType: cartType
         )
     }
     
@@ -68,7 +75,8 @@ struct MarkerPair {
             playerPosition: playerPosition,
             enemyPosition: enemyPosition,
             shotAngle: angle,
-            shotPower: shotPower
+            shotPower: shotPower,
+            cartType: cartType
         )
     }
     
@@ -78,7 +86,19 @@ struct MarkerPair {
             playerPosition: playerPosition,
             enemyPosition: enemyPosition,
             shotAngle: shotAngle,
-            shotPower: power
+            shotPower: power,
+            cartType: cartType
+        )
+    }
+    
+    /// Create a copy with updated cart type
+    func withCartType(_ cartType: CartType) -> MarkerPair {
+        MarkerPair(
+            playerPosition: playerPosition,
+            enemyPosition: enemyPosition,
+            shotAngle: shotAngle,
+            shotPower: shotPower,
+            cartType: cartType
         )
     }
 }
