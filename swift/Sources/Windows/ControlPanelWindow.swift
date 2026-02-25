@@ -21,6 +21,7 @@ class ControlPanelWindow: NSWindow {
     private let windAngleKnob: CircularKnob
     private var shotAngleSliders: [NSSlider] = []
     private var shotAngleLabels: [NSTextField] = []
+    private var shotAngleTitleLabels: [NSTextField] = []
     private var shotAngleSections: [NSView] = []  // Container views for show/hide
     private var cartTypePopUps: [NSPopUpButton] = []
     private let addPairButton: NSButton
@@ -48,6 +49,7 @@ class ControlPanelWindow: NSWindow {
     var onRotateColors: (() -> Void)?
     var onPositionOverlay: ((String, CGPoint) -> Void)?
     var onCartTypeChangedForPair: ((Int, CartType) -> Void)?
+    var onActivePairChanged: ((Int) -> Void)?
     
     // MARK: - State
     
@@ -57,6 +59,8 @@ class ControlPanelWindow: NSWindow {
     private var inputCommitTimer: Timer?
     private var currentColorPalette: Int = 0
     private var isWindowPositioningCollapsed: Bool = false
+    private var activePairIndex: Int = 0
+    private var currentPairCount: Int = 1
     
     // MARK: - Initialization
     
@@ -298,6 +302,7 @@ class ControlPanelWindow: NSWindow {
             // Store references
             shotAngleSliders.append(slider)
             shotAngleLabels.append(valueLabel)
+            shotAngleTitleLabels.append(titleLabel)
             shotAngleSections.append(sectionContainer)
             cartTypePopUps.append(cartPopUp)
             
@@ -538,6 +543,10 @@ class ControlPanelWindow: NSWindow {
     ///   - angles: Array of shot angles for each pair
     ///   - cartTypes: Array of cart types for each pair
     func updateShotAngleControls(pairCount: Int, angles: [Double], cartTypes: [CartType]) {
+        currentPairCount = max(1, min(pairCount, shotAngleSections.count))
+        if activePairIndex >= currentPairCount {
+            activePairIndex = currentPairCount - 1
+        }
         // Show/hide sections based on pair count
         for i in 0..<shotAngleSections.count {
             shotAngleSections[i].isHidden = (i >= pairCount)
@@ -560,6 +569,9 @@ class ControlPanelWindow: NSWindow {
             }
         }
         
+        // Update active pair label indicator
+        updateActivePairLabels()
+        
         // Also update pair button states
         addPairButton.isEnabled = pairCount < 3
         removePairButton.isEnabled = pairCount > 1
@@ -575,6 +587,12 @@ class ControlPanelWindow: NSWindow {
     
     func setShowTrajectory(_ show: Bool) {
         showTrajectoryCheckbox.state = show ? .on : .off
+    }
+    
+    func setActivePairIndex(_ index: Int) {
+        guard index >= 0, index < shotAngleSections.count else { return }
+        activePairIndex = index
+        updateActivePairLabels()
     }
     
     func updateClickThroughUI(enabled: Bool, modifierKeyHeld: Bool) {
@@ -619,6 +637,14 @@ class ControlPanelWindow: NSWindow {
             return
         }
         
+        // Handle Tab to cycle active pair
+        if event.keyCode == 48 { // Tab key
+            guard currentPairCount > 0 else { return }
+            activePairIndex = (activePairIndex + 1) % currentPairCount
+            onActivePairChanged?(activePairIndex)
+            return
+        }
+        
         // Handle left/right arrows for wind angle adjustment
         // keyCode 123 = Left Arrow, 124 = Right Arrow
         if event.keyCode == 123 || event.keyCode == 124 {
@@ -642,25 +668,28 @@ class ControlPanelWindow: NSWindow {
             let stepSize: Double = event.modifierFlags.contains(.shift) ? 2.5 : 1.0
             let increment: Double = event.keyCode == 126 ? stepSize : -stepSize
             
-            // Adjust all visible shot angle sliders
-            for (index, slider) in shotAngleSliders.enumerated() {
-                guard index < shotAngleSections.count, !shotAngleSections[index].isHidden else {
-                    continue
-                }
-                
-                var newValue = slider.doubleValue + increment
-                newValue = max(slider.minValue, min(slider.maxValue, newValue))
-                
-                slider.doubleValue = newValue
-                
-                // Update label
-                if index < shotAngleLabels.count {
-                    shotAngleLabels[index].stringValue = String(format: "%.1f°", newValue)
-                }
-                
-                // Trigger callback
-                onShotAngleChanged?(index, newValue)
+            // Adjust only the active pair's shot angle slider
+            let index = activePairIndex
+            guard index >= 0,
+                  index < shotAngleSliders.count,
+                  index < shotAngleSections.count,
+                  !shotAngleSections[index].isHidden else {
+                return
             }
+            
+            let slider = shotAngleSliders[index]
+            var newValue = slider.doubleValue + increment
+            newValue = max(slider.minValue, min(slider.maxValue, newValue))
+            
+            slider.doubleValue = newValue
+            
+            // Update label
+            if index < shotAngleLabels.count {
+                shotAngleLabels[index].stringValue = String(format: "%.1f°", newValue)
+            }
+            
+            // Trigger callback
+            onShotAngleChanged?(index, newValue)
             return
         }
         
@@ -743,6 +772,17 @@ class ControlPanelWindow: NSWindow {
                 )
                 button.attributedTitle = title
                 button.layer?.backgroundColor = normalBgColor.cgColor
+            }
+        }
+    }
+    
+    private func updateActivePairLabels() {
+        for (index, label) in shotAngleTitleLabels.enumerated() {
+            let baseText = "Pair \(index + 1) Shot Angle (°):"
+            if index == activePairIndex {
+                label.stringValue = "▶ " + baseText
+            } else {
+                label.stringValue = baseText
             }
         }
     }

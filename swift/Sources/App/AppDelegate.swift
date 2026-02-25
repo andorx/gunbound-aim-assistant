@@ -52,6 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             angles: angles,
             cartTypes: cartTypes
         )
+        controlWindow.setActivePairIndex(activePairIndex)
 
         // Setup window close observers (close both windows together)
         setupWindowCloseObservers()
@@ -243,6 +244,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.markerPairs[pairIndex] = self.markerPairs[pairIndex].withCartType(type)
             self.updateVisualization()
         }
+        
+        controlWindow.onActivePairChanged = { [weak self] index in
+            self?.selectPair(at: index)
+        }
     }
 
     private func setupOverlayWindowCallbacks() {
@@ -325,6 +330,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             angles: angles,
             cartTypes: cartTypes
         )
+        controlWindow.setActivePairIndex(activePairIndex)
 
         updateVisualization()
     }
@@ -347,6 +353,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             angles: angles,
             cartTypes: cartTypes
         )
+        controlWindow.setActivePairIndex(activePairIndex)
 
         updateVisualization()
     }
@@ -355,6 +362,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard index < markerPairs.count else { return }
 
         activePairIndex = index
+        controlWindow.setActivePairIndex(index)
 
         // No need to update shot angle controls since each pair has its own visible slider
         updateVisualization()
