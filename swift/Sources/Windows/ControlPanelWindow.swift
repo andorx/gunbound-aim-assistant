@@ -571,6 +571,23 @@ class ControlPanelWindow: NSWindow {
             return
         }
         
+        // Handle left/right arrows for wind angle adjustment
+        // keyCode 123 = Left Arrow, 124 = Right Arrow
+        if event.keyCode == 123 || event.keyCode == 124 {
+            let baseStep: Double = 7.5
+            let stepSize: Double = event.modifierFlags.contains(.shift) ? 15.0 : baseStep
+            let delta: Double = event.keyCode == 123 ? stepSize : -stepSize
+            
+            let currentAngle = windAngleKnob.angle
+            var newAngle = (currentAngle + delta).truncatingRemainder(dividingBy: 360.0)
+            if newAngle < 0 {
+                newAngle += 360.0
+            }
+            
+            windAngleKnob.setAngle(newAngle)
+            return
+        }
+        
         // Handle arrow keys for shot angle adjustment
         // keyCode 126 = Up Arrow, 125 = Down Arrow
         if event.keyCode == 126 || event.keyCode == 125 {
