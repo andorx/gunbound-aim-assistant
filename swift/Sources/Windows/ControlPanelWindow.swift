@@ -516,17 +516,7 @@ class ControlPanelWindow: NSWindow {
         isWindowPositioningCollapsed.toggle()
         windowPositioningContainer.isHidden = isWindowPositioningCollapsed
         windowPositioningHeaderButton.title = isWindowPositioningCollapsed ? "► Window Positioning" : "▼ Window Positioning"
-        
-        // Adjust window height to fit updated content
-        if let containerView = self.contentView as? ClickableContentView {
-            containerView.layoutSubtreeIfNeeded()
-            
-            if let mainStack = containerView.subviews.first(where: { $0 is NSStackView }) as? NSStackView {
-                let fittingSize = mainStack.fittingSize
-                let currentWidth = self.frame.size.width
-                self.setContentSize(NSSize(width: currentWidth, height: fittingSize.height + 25))
-            }
-        }
+        updateWindowHeightToFitContent()
     }
     
     // MARK: - Public Methods
@@ -561,6 +551,9 @@ class ControlPanelWindow: NSWindow {
         // Also update pair button states
         addPairButton.isEnabled = pairCount < 3
         removePairButton.isEnabled = pairCount > 1
+        
+        // Adjust window height when sections are shown/hidden
+        updateWindowHeightToFitContent()
     }
     
     func updatePairButtonStates(pairCount: Int) {
@@ -594,6 +587,19 @@ class ControlPanelWindow: NSWindow {
             clickThroughStatusLabel.stringValue = "✗ Click-Through: Disabled"
             clickThroughStatusLabel.textColor = NSColor(red: 0.290, green: 0.333, blue: 0.408, alpha: 1.0)
         }
+    }
+    
+    // MARK: - Layout Helpers
+    
+    private func updateWindowHeightToFitContent() {
+        guard let containerView = self.contentView as? ClickableContentView else { return }
+        containerView.layoutSubtreeIfNeeded()
+        
+        guard let mainStack = containerView.subviews.first(where: { $0 is NSStackView }) as? NSStackView else { return }
+        
+        let fittingSize = mainStack.fittingSize
+        let currentWidth = self.frame.size.width
+        self.setContentSize(NSSize(width: currentWidth, height: fittingSize.height + 25))
     }
     
     // MARK: - Keyboard Input
