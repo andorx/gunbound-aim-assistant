@@ -517,6 +517,7 @@ class ControlPanelWindow: NSWindow {
         let x = CGFloat(Int(offsetXField.stringValue) ?? 0)
         let y = CGFloat(Int(offsetYField.stringValue) ?? -30)
         onPositionOverlay?(title, CGPoint(x: x, y: y))
+        toggleWindowPositioningSection()
     }
     
     @objc private func toggleWindowPositioningSection() {

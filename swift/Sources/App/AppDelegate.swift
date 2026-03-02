@@ -521,6 +521,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Prediction impact point per pair: closest approach on zero-wind display trajectory
+        let predictionImpactPoints: [TrajectoryPoint?] = markerPairs.indices.map { index in
+            guard index < displayZeroWind.count else { return nil }
+            return displayZeroWind[index].closestApproach(to: markerPairs[index].enemyPosition).point
+        }
+
         // Update trajectory view
         let trajectoryView = overlayWindow.getTrajectoryView()
         trajectoryView.markerPairs = markerPairs
@@ -528,6 +534,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         trajectoryView.windSettings = windSettings
         trajectoryView.trajectories = displayTrajectories
         trajectoryView.zeroWindTrajectories = displayZeroWind
+        trajectoryView.predictionImpactPoints = predictionImpactPoints
 
         // Reset dragging flag after update
         if !useCoarseStep {

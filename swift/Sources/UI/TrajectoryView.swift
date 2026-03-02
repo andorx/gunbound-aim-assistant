@@ -49,6 +49,15 @@ class TrajectoryView: NSView {
             window?.displayIfNeeded()
         }
     }
+
+    /// Per-pair prediction impact point (at most one per pair)
+    var predictionImpactPoints: [TrajectoryPoint?] = [] {
+        didSet {
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
+    }
     
     /// Whether to show the current wind trajectory lines
     var showTrajectory: Bool = true {
@@ -169,6 +178,16 @@ class TrajectoryView: NSView {
                 color: colors.enemy,
                 isActive: isActive
             )
+
+            // Draw prediction impact marker (single point per pair)
+            if index < predictionImpactPoints.count, let impactPoint = predictionImpactPoints[index] {
+                drawPredictionMarker(
+                    context: context,
+                    position: impactPoint.position,
+                    colors: colors,
+                    isActive: isActive
+                )
+            }
         }
         
         // Draw wind indicator
@@ -256,6 +275,28 @@ class TrajectoryView: NSView {
         
         context.addEllipse(in: rect)
         context.drawPath(using: .fillStroke)
+    }
+
+    private func drawPredictionMarker(
+        context: CGContext,
+        position: CGPoint,
+        colors: ColorUtilities.MarkerColors,
+        isActive: Bool
+    ) {
+        let radius: CGFloat = 3.5
+
+        context.setFillColor(colors.player.withAlphaComponent(0.65).cgColor)
+        context.setLineWidth(0)
+
+        let rect = CGRect(
+            x: position.x - radius,
+            y: position.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        )
+
+        context.addEllipse(in: rect)
+        context.drawPath(using: .fill)
     }
     
     private func drawCrosshair(context: CGContext, center: CGPoint) {
