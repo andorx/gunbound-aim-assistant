@@ -271,7 +271,7 @@ class ControlPanelWindow: NSWindow {
             sectionStack.addArrangedSubview(titleLabel)
             
             // Create slider with pair color
-            let slider = NSSlider(value: 45.0, minValue: 0.0, maxValue: 90.0, target: nil, action: nil)
+            let slider = NSSlider(value: 45.0, minValue: 0.0, maxValue: 135.0, target: nil, action: nil)
             slider.translatesAutoresizingMaskIntoConstraints = false
             slider.tag = i  // Store pair index in tag
             slider.trackFillColor = pairColors[i]

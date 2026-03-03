@@ -27,7 +27,7 @@ enum TrajectoryCalculator {
     ///
     /// - Parameters:
     ///   - startPosition: Starting position in canvas coordinates
-    ///   - shotAngle: Shot angle in degrees (0-90)
+    ///   - shotAngle: Shot angle in degrees (typically 0-135; 0 is horizontal, 90 is vertical, >90 tilts back toward the player)
     ///   - shotPower: Shot power (0-400)
     ///   - windSettings: Wind configuration
     ///   - direction: Horizontal direction (1 for right, -1 for left)

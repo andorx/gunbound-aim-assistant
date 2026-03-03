@@ -8,7 +8,7 @@ struct MarkerPair {
     /// Enemy position in canvas coordinates
     var enemyPosition: CGPoint
     
-    /// Shot angle in degrees (0-90, where 0 is horizontal, 90 is vertical)
+    /// Shot angle in degrees (0-135, where 0 is horizontal, 90 is vertical, and >90 tilts back toward the player)
     var shotAngle: Double
     
     /// Calculated shot power (0-400)
@@ -30,7 +30,7 @@ struct MarkerPair {
     init(playerPosition: CGPoint, enemyPosition: CGPoint, shotAngle: Double, shotPower: Double, cartType: CartType = .default) {
         self.playerPosition = playerPosition
         self.enemyPosition = enemyPosition
-        self.shotAngle = max(0.0, min(90.0, shotAngle))
+        self.shotAngle = max(0.0, min(135.0, shotAngle))
         self.shotPower = max(0.0, min(400.0, shotPower))
         self.cartType = cartType
     }

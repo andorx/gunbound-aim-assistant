@@ -445,7 +445,7 @@ class TrajectoryView: NSView {
             let deltaY = startY - location.y
             let deltaAngle = Double(deltaY) * Double(angleDragSensitivity)
             var newAngle = initialAngle + deltaAngle
-            newAngle = max(0, min(90, newAngle))
+            newAngle = max(0, min(135, newAngle))
             
             onTrajectoryAngleDragged?(index, newAngle)
         }
