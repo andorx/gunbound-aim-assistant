@@ -32,6 +32,22 @@
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/1.png" width="720" alt="Overlay positioned on Gunbound Legend — trajectory arc with wind at 6:30 direction">
+</p>
+<p align="center"><em>Overlay positioned on Gunbound Legend — trajectory arc with wind force 5 blowing at 6:30</em></p>
+
+<br>
+
+<p align="center">
+  <img src="screenshots/2.png" width="720" alt="Aim assistant with wind at 10:15 — adjusted shot angle and prediction line">
+</p>
+<p align="center"><em>Different wind direction (10:15) — the trajectory and prediction line adjust in real time</em></p>
+
+---
+
 ## 🏗️ Architecture
 
 ```
