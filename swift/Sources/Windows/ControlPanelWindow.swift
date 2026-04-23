@@ -29,6 +29,7 @@ class ControlPanelWindow: NSWindow {
     private let clickThroughButton: NSButton
     private let clickThroughStatusLabel: NSTextField
     private let showTrajectoryCheckbox: NSButton
+    private let showStepTicksCheckbox: NSButton
     private let rotateColorsButton: NSButton
     private let targetWindowField: NSTextField
     private let offsetXField: NSTextField
@@ -46,6 +47,7 @@ class ControlPanelWindow: NSWindow {
     var onRemovePair: (() -> Void)?
     var onToggleClickThrough: (() -> Void)?
     var onToggleTrajectory: ((Bool) -> Void)?
+    var onToggleStepTicks: ((Bool) -> Void)?
     var onRotateColors: (() -> Void)?
     var onPositionOverlay: ((String, CGPoint) -> Void)?
     var onCartTypeChangedForPair: ((Int, CartType) -> Void)?
@@ -80,6 +82,7 @@ class ControlPanelWindow: NSWindow {
         self.clickThroughButton = NSButton(title: "Enable Click-Through", target: nil, action: nil)
         self.clickThroughStatusLabel = NSTextField(labelWithString: "✗ Click-Through: Disabled")
         self.showTrajectoryCheckbox = NSButton(checkboxWithTitle: "Show Prediction Lines", target: nil, action: nil)
+        self.showStepTicksCheckbox = NSButton(checkboxWithTitle: "Show Distance Ticks", target: nil, action: nil)
         self.rotateColorsButton = NSButton(title: "Rotate Colors", target: nil, action: nil)
         self.targetWindowField = NSTextField(string: "Gunbound Legend")
         self.offsetXField = NSTextField(string: "0")
@@ -341,6 +344,10 @@ class ControlPanelWindow: NSWindow {
         // Trajectory toggle
         showTrajectoryCheckbox.state = .on  // Default to showing trajectory
         mainStack.addArrangedSubview(showTrajectoryCheckbox)
+
+        // Step-distance ticks toggle (off by default)
+        showStepTicksCheckbox.state = .off
+        mainStack.addArrangedSubview(showStepTicksCheckbox)
         
         // Color rotation button and label
         rotateColorsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -438,6 +445,10 @@ class ControlPanelWindow: NSWindow {
         // Trajectory checkbox
         showTrajectoryCheckbox.target = self
         showTrajectoryCheckbox.action = #selector(trajectoryCheckboxChanged(_:))
+
+        // Step-distance ticks checkbox
+        showStepTicksCheckbox.target = self
+        showStepTicksCheckbox.action = #selector(stepTicksCheckboxChanged(_:))
         
         // Rotate colors button
         rotateColorsButton.target = self
@@ -495,6 +506,11 @@ class ControlPanelWindow: NSWindow {
     @objc private func trajectoryCheckboxChanged(_ sender: NSButton) {
         let isChecked = sender.state == .on
         onToggleTrajectory?(isChecked)
+    }
+
+    @objc private func stepTicksCheckboxChanged(_ sender: NSButton) {
+        let isChecked = sender.state == .on
+        onToggleStepTicks?(isChecked)
     }
     
     @objc private func rotateColorsClicked() {

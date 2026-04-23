@@ -230,6 +230,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.overlayWindow.getTrajectoryView().showTrajectory = showTrajectory
         }
 
+        controlWindow.onToggleStepTicks = { [weak self] enabled in
+            self?.overlayWindow.configureStepDistanceTicks(enabled: enabled)
+        }
+
         controlWindow.onRotateColors = { [weak self] in
             self?.rotateColorPalette()
         }

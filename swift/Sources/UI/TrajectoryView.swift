@@ -50,6 +50,24 @@ class TrajectoryView: NSView {
         }
     }
 
+    /// Whether to draw step-distance tick markers along the baseline trajectory
+    var showStepDistanceTicks: Bool = false {
+        didSet {
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
+    }
+
+    /// Interval between step-distance ticks, in canvas units along the path
+    var stepDistanceInterval: CGFloat = 100 {
+        didSet {
+            needsDisplay = true
+            window?.invalidateShadow()
+            window?.displayIfNeeded()
+        }
+    }
+
     /// Per-pair prediction impact point (at most one per pair)
     var predictionImpactPoints: [TrajectoryPoint?] = [] {
         didSet {
@@ -140,13 +158,25 @@ class TrajectoryView: NSView {
             
             // Draw zero-wind trajectory (baseline)
             if index < zeroWindTrajectories.count {
-               drawGradientTrajectory(
-                  context: context,
-                  trajectory: zeroWindTrajectories[index],
-                  startColor: colors.trajectoryStart,
-                  endColor: colors.trajectoryEnd,
-                  lineWidth: 2,
-               )
+                let zeroWindTrajectory = zeroWindTrajectories[index]
+                drawGradientTrajectory(
+                    context: context,
+                    trajectory: zeroWindTrajectory,
+                    startColor: colors.trajectoryStart,
+                    endColor: colors.trajectoryEnd,
+                    lineWidth: 2
+                )
+
+                if showStepDistanceTicks, stepDistanceInterval > 0 {
+                    drawStepDistanceTicks(
+                        context: context,
+                        trajectory: zeroWindTrajectory,
+                        interval: stepDistanceInterval,
+                        tickLength: 8,
+                        color: colors.trajectoryEnd,
+                        lineWidth: 1
+                    )
+                }
             }
             
             // Draw current wind trajectory (if enabled)
@@ -251,6 +281,67 @@ class TrajectoryView: NSView {
         }
 
         context.setLineDash(phase: 0, lengths: [])
+    }
+
+    /// Draw short perpendicular tick markers along a trajectory at regular path-length intervals.
+    private func drawStepDistanceTicks(
+        context: CGContext,
+        trajectory: TrajectoryResult,
+        interval: CGFloat,
+        tickLength: CGFloat,
+        color: NSColor,
+        lineWidth: CGFloat
+    ) {
+        let points = trajectory.points.map(\.position)
+        guard points.count > 1, interval > 0, tickLength > 0 else { return }
+
+        var accumulatedLength: CGFloat = 0
+        var nextTickDistance: CGFloat = interval
+
+        context.saveGState()
+        context.setStrokeColor(color.withAlphaComponent(0.9).cgColor)
+        context.setLineWidth(lineWidth)
+        context.setLineDash(phase: 0, lengths: [])
+
+        for i in 0..<(points.count - 1) {
+            let p0 = points[i]
+            let p1 = points[i + 1]
+            let segmentVec = CGPoint(x: p1.x - p0.x, y: p1.y - p0.y)
+            let segmentLength = CGFloat(hypot(segmentVec.x, segmentVec.y))
+            guard segmentLength > 0 else { continue }
+
+            while accumulatedLength + segmentLength >= nextTickDistance {
+                let remainingToTick = nextTickDistance - accumulatedLength
+                let t = remainingToTick / segmentLength
+                let px = p0.x + segmentVec.x * t
+                let py = p0.y + segmentVec.y * t
+                let pointOnPath = CGPoint(x: px, y: py)
+
+                // Perpendicular (normal) vector to the path segment
+                var nx = -segmentVec.y
+                var ny = segmentVec.x
+                let nLen = CGFloat(hypot(nx, ny))
+                if nLen > 0 {
+                    nx /= nLen
+                    ny /= nLen
+                }
+
+                let halfLen = tickLength / 2
+                let start = CGPoint(x: pointOnPath.x - nx * halfLen, y: pointOnPath.y - ny * halfLen)
+                let end = CGPoint(x: pointOnPath.x + nx * halfLen, y: pointOnPath.y + ny * halfLen)
+
+                context.beginPath()
+                context.move(to: start)
+                context.addLine(to: end)
+                context.strokePath()
+
+                nextTickDistance += interval
+            }
+
+            accumulatedLength += segmentLength
+        }
+
+        context.restoreGState()
     }
     
     private func drawMarker(

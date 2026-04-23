@@ -47,6 +47,15 @@ class OverlayWindow: NSWindow {
     func getTrajectoryView() -> TrajectoryView {
         return trajectoryView
     }
+
+    /// Configure step-distance tick markers on the underlying trajectory view.
+    /// - Parameters:
+    ///   - enabled: Whether to show step-distance ticks.
+    ///   - interval: Distance between ticks along the path (default 100).
+    func configureStepDistanceTicks(enabled: Bool, interval: CGFloat = 100) {
+        trajectoryView.showStepDistanceTicks = enabled
+        trajectoryView.stepDistanceInterval = interval
+    }
     
     /// Enable or disable click-through mode
     func setClickThrough(enabled: Bool) {
